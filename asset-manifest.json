@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/Stock_Dashboard/static/css/main.78c5bd1e.css",
-    "main.js": "/Stock_Dashboard/static/js/main.a0334cb3.js",
+    "main.js": "/Stock_Dashboard/static/js/main.0e790967.js",
     "index.html": "/Stock_Dashboard/index.html",
     "main.78c5bd1e.css.map": "/Stock_Dashboard/static/css/main.78c5bd1e.css.map",
-    "main.a0334cb3.js.map": "/Stock_Dashboard/static/js/main.a0334cb3.js.map"
+    "main.0e790967.js.map": "/Stock_Dashboard/static/js/main.0e790967.js.map"
   },
   "entrypoints": [
     "static/css/main.78c5bd1e.css",
-    "static/js/main.a0334cb3.js"
+    "static/js/main.0e790967.js"
   ]
 }
