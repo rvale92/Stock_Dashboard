@@ -1,5 +1,11 @@
 # GitHub Pages Deployment Guide
 
+## ✅ Deployment Status
+
+**Live Site**: https://rvale92.github.io/Stock_Dashboard  
+**Repository**: https://github.com/rvale92/Stock_Dashboard  
+**Last Deployed**: Check GitHub repository for latest deployment status
+
 ## Quick Deploy
 
 Once your repository is set up:

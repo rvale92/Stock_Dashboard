@@ -46,7 +46,17 @@ A React-based stock analysis dashboard and watchlist application for tracking an
 
 ### Live Version
 
-The app is live on GitHub Pages at: **https://rvale92.github.io/Stock_Dashboard**
+**🌐 Live Site**: https://rvale92.github.io/Stock_Dashboard
+
+The app is live and ready to use. All features are fully functional including:
+- Real-time stock quotes and updates
+- Price alerts with browser notifications
+- Dark mode with persistent preference
+- Portfolio management and tracking
+- Interactive charts and technical indicators
+- Full keyboard and screen reader accessibility
+
+**Note**: For best experience, configure API keys (see API_SETUP.md). The app works with demo keys but has strict rate limits.
 
 ### Deploying to GitHub Pages
 
@@ -255,10 +265,22 @@ See `API_SETUP.md` for detailed setup instructions and `docs/api-reference.md` f
 - Backtesting tools
 - Portfolio allocation charts (pie/bar charts)
 
-## Repository
+## Repository & Deployment
 
-- **GitHub**: https://github.com/rvale92/Stock_Dashboard
+- **GitHub Repository**: https://github.com/rvale92/Stock_Dashboard
 - **Live Demo**: https://rvale92.github.io/Stock_Dashboard
+- **Deployment Guide**: See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions
+- **Verification Checklist**: See [DEPLOYMENT_VERIFICATION.md](./DEPLOYMENT_VERIFICATION.md) for post-deployment testing
+
+### Quick Deploy
+
+After setting up git repository:
+
+```bash
+npm run deploy
+```
+
+The app will be available at https://rvale92.github.io/Stock_Dashboard within 1-5 minutes.
 
 ## Contributing
 
