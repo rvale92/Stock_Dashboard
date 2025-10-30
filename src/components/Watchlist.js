@@ -1,4 +1,34 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  TextField,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  IconButton,
+  Chip,
+  Box,
+  Autocomplete,
+  Paper,
+  CircularProgress,
+  Alert,
+  Badge,
+  Tooltip,
+  Collapse
+} from '@mui/material';
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Notifications as NotificationsIcon,
+  NotificationsActive as NotificationsActiveIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  
+} from '@mui/icons-material';
 import { fetchStockQuote } from '../utils/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { checkAlerts, getAlertsForSymbol } from '../utils/alerts';
@@ -15,23 +45,19 @@ const COMMON_STOCKS = [
 function Watchlist({ onStockSelect }) {
   const [stocks, setStocks] = useState([]);
   const [symbol, setSymbol] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [stockData, setStockData] = useState({});
   const [loading, setLoading] = useState({});
   const [error, setError] = useState({});
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSymbolForAlert, setSelectedSymbolForAlert] = useState(null);
 
   // Load watchlist from localStorage on mount
   useEffect(() => {
     const savedStocks = localStorage.getItem('watchlist');
     if (savedStocks) {
-      const saved = JSON.parse(savedStocks);
-      setStocks(saved);
-      // Fetch data for saved stocks
-      saved.forEach(stock => fetchStockData(stock));
+      const parsed = JSON.parse(savedStocks);
+      setStocks(parsed);
+      parsed.forEach(stock => fetchStockData(stock));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save watchlist to localStorage whenever it changes
@@ -64,7 +90,7 @@ function Watchlist({ onStockSelect }) {
     }
   };
 
-  const { isConnected: wsConnected, lastUpdate } = useWebSocket(
+  const { isConnected: wsConnected } = useWebSocket(
     stocks.length > 0 ? stocks : null,
     handleWebSocketUpdate,
     stocks.length > 0
@@ -72,13 +98,15 @@ function Watchlist({ onStockSelect }) {
 
   // Fallback polling: Refresh stock quotes every 60 seconds if WebSocket is not connected
   useEffect(() => {
-    if (stocks.length === 0 || wsConnected) return; // Skip polling if WebSocket is active
+    if (stocks.length === 0 || wsConnected) return;
 
     const updateAllStocks = async () => {
       for (const stock of stocks) {
         try {
-          // Use useCache=false to force fresh data
           const data = await fetchStockQuote(stock, false);
+          if (data && data.price) {
+            checkAlerts(stock, data.price);
+          }
           setStockData(prev => ({ ...prev, [stock]: data }));
         } catch (err) {
           console.error(`Error updating ${stock}:`, err);
@@ -86,10 +114,8 @@ function Watchlist({ onStockSelect }) {
       }
     };
 
-    // Initial update after mount
     updateAllStocks();
-    const intervalId = setInterval(updateAllStocks, 60000); // 60 seconds
-
+    const intervalId = setInterval(updateAllStocks, 60000);
     return () => clearInterval(intervalId);
   }, [stocks, wsConnected]);
 
@@ -106,7 +132,6 @@ function Watchlist({ onStockSelect }) {
       if (data && data.price) {
         const triggered = checkAlerts(stockSymbol, data.price);
         if (triggered.length > 0) {
-          // Force re-render to show triggered alerts
           setStockData(prev => ({ ...prev }));
         }
       }
@@ -118,13 +143,21 @@ function Watchlist({ onStockSelect }) {
     }
   };
 
+  const addStockFromSymbol = async (stockSymbol) => {
+    const upperSymbol = stockSymbol.toUpperCase().trim();
+    if (upperSymbol && !stocks.includes(upperSymbol)) {
+      setStocks([...stocks, upperSymbol]);
+      setSymbol('');
+      await fetchStockData(upperSymbol);
+    }
+  };
+
   const addStock = async () => {
     await addStockFromSymbol(symbol);
   };
 
   const removeStock = (stockSymbol) => {
     setStocks(stocks.filter(s => s !== stockSymbol));
-    // Remove from stockData and loading states
     setStockData(prev => {
       const newData = { ...prev };
       delete newData[stockSymbol];
@@ -142,49 +175,9 @@ function Watchlist({ onStockSelect }) {
     });
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      addStock();
-    }
-  };
-
   const handleStockClick = (stockSymbol) => {
-    if (onStockSelect) {
+    if (stockData[stockSymbol]) {
       onStockSelect(stockSymbol);
-    }
-  };
-
-  // Filter stocks for autocomplete
-  const filteredSuggestions = COMMON_STOCKS.filter(
-    stock => stock.toLowerCase().includes(searchTerm.toLowerCase()) && 
-             !stocks.includes(stock)
-  ).slice(0, 5);
-
-  const handleSearchChange = (e) => {
-    const value = e.target.value.toUpperCase();
-    setSearchTerm(value);
-    setSymbol(value);
-    setShowSuggestions(value.length > 0);
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    setSymbol(suggestion);
-    setSearchTerm('');
-    setShowSuggestions(false);
-    // Auto-add the stock
-    if (!stocks.includes(suggestion)) {
-      addStockFromSymbol(suggestion);
-    }
-  };
-
-  const addStockFromSymbol = async (stockSymbol) => {
-    const upperSymbol = stockSymbol.toUpperCase().trim();
-    if (upperSymbol && !stocks.includes(upperSymbol)) {
-      setStocks([...stocks, upperSymbol]);
-      setSymbol('');
-      setSearchTerm('');
-      setShowSuggestions(false);
-      await fetchStockData(upperSymbol);
     }
   };
 
@@ -195,148 +188,244 @@ function Watchlist({ onStockSelect }) {
   const formatChange = (change, changePercent) => {
     if (change === undefined || changePercent === undefined) return '--';
     const sign = change >= 0 ? '+' : '';
-    const colorClass = change >= 0 ? 'positive' : 'negative';
+    const isPositive = change >= 0;
     return (
-      <span className={colorClass}>
-        {sign}{change.toFixed(2)} ({sign}{changePercent.toFixed(2)}%)
-      </span>
+      <Chip
+        icon={isPositive ? <TrendingUpIcon /> : <TrendingDownIcon />}
+        label={`${sign}${change.toFixed(2)} (${sign}${changePercent.toFixed(2)}%)`}
+        color={isPositive ? 'success' : 'error'}
+        size="small"
+        sx={{ fontWeight: 600 }}
+      />
     );
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      addStock();
+    }
+  };
+
   return (
-    <div className="watchlist">
-      <div className="watchlist-header">
-        <h2>Watchlist</h2>
-        {stocks.length > 0 && (
-          <span className={`connection-status ${wsConnected ? 'connected' : 'polling'}`}>
-            {wsConnected ? '⚡ Live' : '🔄 Polling'}
-          </span>
-        )}
-      </div>
-      <div className="watchlist-input-container">
-        <div className="watchlist-input-wrapper">
-          <input
-            type="text"
-            placeholder="Search or enter symbol (e.g., AAPL)"
+    <Card 
+      sx={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <CardHeader
+        title={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h5" component="h2">
+              Watchlist
+            </Typography>
+            {stocks.length > 0 && (
+              <Chip
+                label={wsConnected ? '⚡ Live' : '🔄 Polling'}
+                color={wsConnected ? 'success' : 'warning'}
+                size="small"
+                sx={{ fontWeight: 600 }}
+              />
+            )}
+          </Box>
+        }
+        sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          '& .MuiCardHeader-title': {
+            color: 'white',
+            fontWeight: 700,
+          },
+        }}
+      />
+      <CardContent sx={{ flexGrow: 1, p: 2 }}>
+        <Box sx={{ mb: 2 }}>
+          <Autocomplete
+            freeSolo
+            options={COMMON_STOCKS}
             value={symbol}
-            onChange={handleSearchChange}
-            onKeyPress={handleKeyPress}
-            onFocus={() => setShowSuggestions(searchTerm.length > 0)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            onChange={(event, newValue) => {
+              if (newValue) {
+                setSymbol(newValue);
+                addStockFromSymbol(newValue);
+              }
+            }}
+            onInputChange={(event, newInputValue) => {
+              setSymbol(newInputValue.toUpperCase());
+            }}
+            inputValue={symbol}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Search or enter symbol"
+                variant="outlined"
+                fullWidth
+                size="small"
+                onKeyPress={handleKeyPress}
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {params.InputProps.endAdornment}
+                      <IconButton
+                        onClick={addStock}
+                        disabled={!symbol.trim() || stocks.includes(symbol.toUpperCase().trim())}
+                        color="primary"
+                        sx={{
+                          background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                          color: 'white',
+                          '&:hover': {
+                            background: 'linear-gradient(45deg, #1976D2 30%, #1CB5E0 90%)',
+                          },
+                          '&.Mui-disabled': {
+                            background: 'rgba(0, 0, 0, 0.12)',
+                          },
+                        }}
+                        aria-label="Add stock"
+                      >
+                        <AddIcon />
+                      </IconButton>
+                    </>
+                  ),
+                }}
+              />
+            )}
+            PaperComponent={({ children, ...other }) => (
+              <Paper
+                {...other}
+                sx={{
+                  mt: 1,
+                  boxShadow: 3,
+                }}
+              >
+                {children}
+              </Paper>
+            )}
           />
-          <button onClick={addStock}>Add</button>
-        </div>
-        {showSuggestions && filteredSuggestions.length > 0 && (
-          <ul className="suggestions-list">
-            {filteredSuggestions.map((suggestion) => (
-              <li
-                key={suggestion}
-                className="suggestion-item"
-                onClick={() => handleSuggestionClick(suggestion)}
-              >
-                {suggestion}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <ul className="watchlist-items">
+        </Box>
+
         {stocks.length === 0 ? (
-          <li className="watchlist-empty">No stocks in watchlist</li>
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body2" color="text.secondary">
+              No stocks in watchlist. Add stocks to get started!
+            </Typography>
+          </Box>
         ) : (
-          stocks.map((stock) => {
-            const data = stockData[stock];
-            const isLoading = loading[stock];
-            const hasError = error[stock];
-            
-            return (
-              <li 
-                key={stock} 
-                className={`watchlist-item ${data ? 'clickable' : ''}`}
-                onClick={() => data && handleStockClick(stock)}
-              >
-                <div className="watchlist-item-info">
-                  <span className="stock-symbol">{stock}</span>
-                  {isLoading && <span className="loading-text">Loading...</span>}
-                  {hasError && <span className="error-text">{hasError}</span>}
-                  {data && !isLoading && (
-                    <div className="stock-quote">
-                      <span className="stock-price">{formatPrice(data.price)}</span>
-                      <span className="stock-change">{formatChange(data.change, data.changePercent)}</span>
-                      {(() => {
-                        const alerts = getAlertsForSymbol(stock);
-                        const hasActiveAlert = alerts.some(a => !a.triggered && !a.cleared);
-                        const hasTriggeredAlert = alerts.some(a => a.triggered && !a.cleared);
-                        return (
-                          <>
-                            {hasActiveAlert && (
-                              <span 
-                                className="alert-badge active" 
-                                title="Price alert set"
-                                aria-label={`Price alert active for ${stock}`}
-                                role="status"
-                              >
-                                <span aria-hidden="true">🔔</span>
-                              </span>
-                            )}
-                            {hasTriggeredAlert && (
-                              <span 
-                                className="alert-badge triggered" 
-                                title="Price alert triggered!"
-                                aria-label={`Price alert triggered for ${stock}!`}
-                                role="alert"
-                              >
-                                <span aria-hidden="true">🚨</span>
-                              </span>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
-                <div className="watchlist-item-actions">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSymbolForAlert(selectedSymbolForAlert === stock ? null : stock);
-                    }}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        setSelectedSymbolForAlert(selectedSymbolForAlert === stock ? null : stock);
-                      }
-                    }}
-                    className={`alert-btn ${selectedSymbolForAlert === stock ? 'active' : ''}`}
-                    aria-label={`Set price alert for ${stock}`}
-                    title="Set price alert"
-                    tabIndex={0}
-                  >
-                    <span aria-hidden="true">🔔</span>
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeStock(stock);
-                    }}
-                    className="remove-btn"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </li>
-            );
-          })
+          <List sx={{ p: 0 }}>
+            {stocks.map((stock) => {
+              const data = stockData[stock];
+              const isLoading = loading[stock];
+              const hasError = error[stock];
+              const alerts = getAlertsForSymbol(stock);
+              const hasActiveAlert = alerts.some(a => !a.triggered && !a.cleared);
+              const hasTriggeredAlert = alerts.some(a => a.triggered && !a.cleared);
+              
+              return (
+                <ListItem
+                  key={stock}
+                  button
+                  onClick={() => data && handleStockClick(stock)}
+                  sx={{
+                    mb: 1,
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                      transform: 'translateX(4px)',
+                      transition: 'transform 0.2s ease-in-out',
+                    },
+                  }}
+                >
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                          {stock}
+                        </Typography>
+                        {hasActiveAlert && (
+                          <Tooltip title="Price alert active">
+                            <NotificationsIcon fontSize="small" color="warning" />
+                          </Tooltip>
+                        )}
+                        {hasTriggeredAlert && (
+                          <Tooltip title="Price alert triggered!">
+                            <Badge color="error" variant="dot">
+                              <NotificationsActiveIcon fontSize="small" color="error" />
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    }
+                    secondary={
+                      isLoading ? (
+                        <CircularProgress size={16} />
+                      ) : hasError ? (
+                        <Alert severity="error" sx={{ py: 0, mt: 0.5 }}>
+                          {hasError}
+                        </Alert>
+                      ) : data ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                            {formatPrice(data.price)}
+                          </Typography>
+                          {formatChange(data.change, data.changePercent)}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Loading...
+                        </Typography>
+                      )
+                    }
+                  />
+                  <ListItemSecondaryAction>
+                    <Tooltip title="Set price alert">
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSymbolForAlert(selectedSymbolForAlert === stock ? null : stock);
+                        }}
+                        color={selectedSymbolForAlert === stock ? 'primary' : 'default'}
+                        aria-label={`Set price alert for ${stock}`}
+                      >
+                        <NotificationsIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Remove from watchlist">
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeStock(stock);
+                        }}
+                        color="error"
+                        aria-label={`Remove ${stock}`}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              );
+            })}
+          </List>
         )}
-      </ul>
-      
-      {selectedSymbolForAlert && stockData[selectedSymbolForAlert] && (
-        <AlertManager 
-          symbol={selectedSymbolForAlert}
-          currentPrice={stockData[selectedSymbolForAlert]?.price}
-        />
-      )}
-    </div>
+
+        <Collapse in={!!selectedSymbolForAlert}>
+          {selectedSymbolForAlert && stockData[selectedSymbolForAlert] && (
+            <Box sx={{ mt: 2 }}>
+              <AlertManager 
+                symbol={selectedSymbolForAlert}
+                currentPrice={stockData[selectedSymbolForAlert]?.price}
+              />
+            </Box>
+          )}
+        </Collapse>
+      </CardContent>
+    </Card>
   );
 }
 

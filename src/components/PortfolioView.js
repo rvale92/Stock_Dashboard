@@ -1,4 +1,31 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  TextField,
+  Button,
+  Grid,
+  Paper,
+  Box,
+  CircularProgress,
+  IconButton,
+  Chip,
+  Tooltip,
+  Badge,
+  Collapse
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Notifications as NotificationsIcon,
+  NotificationsActive as NotificationsActiveIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  AccountBalanceWallet as WalletIcon
+} from '@mui/icons-material';
 import { 
   getPortfolioById, 
   addSymbolToPortfolio,
@@ -20,7 +47,8 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
 
   useEffect(() => {
     if (portfolioId) {
-      loadPortfolio();
+      const loaded = getPortfolioById(portfolioId);
+      setPortfolio(loaded);
     } else {
       setPortfolio(null);
       setPortfolioData([]);
@@ -31,7 +59,6 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
   useEffect(() => {
     if (portfolio && portfolio.symbols.length > 0) {
       loadPortfolioData();
-      // Refresh data every 30 seconds
       const interval = setInterval(() => {
         loadPortfolioData();
       }, 30000);
@@ -43,10 +70,7 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolio]);
 
-  const loadPortfolio = () => {
-    const loaded = getPortfolioById(portfolioId);
-    setPortfolio(loaded);
-  };
+  
 
   const loadPortfolioData = async () => {
     if (!portfolio || portfolio.symbols.length === 0) return;
@@ -55,18 +79,14 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
     setError(null);
 
     try {
-      // Fetch quotes for all symbols in portfolio
       const quotes = await fetchMultipleQuotes(portfolio.symbols);
       
-      // Filter out errors and map to portfolio data structure
       const validQuotes = quotes
         .filter(q => q && !q.error && q.price)
         .map(quote => {
-          // Check for alerts when loading data
           if (quote.price) {
             const triggered = checkAlerts(quote.symbol, quote.price);
             if (triggered.length > 0) {
-              // Force re-render if alerts triggered
               setTimeout(() => loadAlerts(), 100);
             }
           }
@@ -90,7 +110,6 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
   };
   
   const loadAlerts = () => {
-    // This triggers a re-check of alerts
     if (portfolio && portfolio.symbols.length > 0) {
       portfolioData.forEach(stock => {
         if (stock.price) {
@@ -105,37 +124,29 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
 
     const upperSymbol = newSymbol.toUpperCase().trim();
     
-    // Check if symbol already exists
     if (portfolio.symbols.includes(upperSymbol)) {
-      setError(`Symbol ${upperSymbol} already in portfolio`);
-      setTimeout(() => setError(null), 3000);
+      setError(`${upperSymbol} is already in this portfolio`);
       return;
     }
 
     try {
-      // Verify symbol exists by fetching quote
-      const quotes = await fetchMultipleQuotes([upperSymbol]);
-      if (quotes.length === 0 || quotes[0].error) {
-        setError(`Invalid symbol: ${upperSymbol}`);
-        setTimeout(() => setError(null), 3000);
-        return;
-      }
-
-      addSymbolToPortfolio(portfolioId, upperSymbol);
+      addSymbolToPortfolio(portfolio.id, upperSymbol);
       setNewSymbol('');
-      loadPortfolio();
+      setError(null);
+      const updated = getPortfolioById(portfolio.id);
+      setPortfolio(updated);
+      loadPortfolioData();
     } catch (err) {
-      console.error('Error adding symbol:', err);
-      setError('Failed to add symbol');
-      setTimeout(() => setError(null), 3000);
+      setError(err.message || 'Failed to add symbol');
     }
   };
 
   const handleRemoveSymbol = (symbol) => {
-    if (portfolio) {
-      removeSymbolFromPortfolio(portfolioId, symbol);
-      loadPortfolio();
-    }
+    if (!portfolio) return;
+    removeSymbolFromPortfolio(portfolio.id, symbol);
+    const updated = getPortfolioById(portfolio.id);
+    setPortfolio(updated);
+    loadPortfolioData();
   };
 
   const formatPrice = (price) => {
@@ -143,178 +154,243 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
   };
 
   const formatChange = (change, changePercent) => {
-    if (change === undefined || changePercent === undefined) return '--';
-    const sign = change >= 0 ? '+' : '';
+    if (change === undefined || changePercent === undefined) return null;
+    const isPositive = change >= 0;
     return (
-      <span className={change >= 0 ? 'positive' : 'negative'}>
-        {sign}{change.toFixed(2)} ({sign}{changePercent.toFixed(2)}%)
-      </span>
+      <Chip
+        icon={isPositive ? <TrendingUpIcon /> : <TrendingDownIcon />}
+        label={`${change >= 0 ? '+' : ''}${change.toFixed(2)} (${change >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`}
+        color={isPositive ? 'success' : 'error'}
+        size="small"
+        sx={{ fontWeight: 600 }}
+      />
     );
   };
 
-  if (!portfolioId || !portfolio) {
+  if (!portfolio) {
     return (
-      <div className="portfolio-view">
-        <div className="empty-portfolio">
-          Select or create a portfolio to view details
-        </div>
-      </div>
+      <Card>
+        <CardContent>
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body2" color="text.secondary">
+              Select a portfolio to view its details.
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="portfolio-view">
-      <div className="portfolio-header">
-        <div>
-          <h2>{portfolio.name}</h2>
-          <div className="portfolio-meta">
-            {portfolio.symbols.length} {portfolio.symbols.length === 1 ? 'stock' : 'stocks'}
-          </div>
-        </div>
-        {onBack && (
-          <button className="back-to-watchlist-btn" onClick={onBack} title="Back to Watchlist">
-            ← Watchlist
-          </button>
+    <Card sx={{ mb: 3 }}>
+      <CardHeader
+        title={
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <WalletIcon />
+              <Typography variant="h5">{portfolio.name}</Typography>
+              <Chip label={`${portfolio.symbols.length} ${portfolio.symbols.length === 1 ? 'stock' : 'stocks'}`} size="small" />
+            </Box>
+            {onBack && (
+              <Button
+                startIcon={<ArrowBackIcon />}
+                onClick={onBack}
+                variant="outlined"
+                size="small"
+              >
+                Back to Watchlist
+              </Button>
+            )}
+          </Box>
+        }
+        sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          '& .MuiCardHeader-title': { color: 'white', fontWeight: 700 },
+        }}
+      />
+      <CardContent>
+        {performance && (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={4}>
+              <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Value
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {formatPrice(performance.totalValue)}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Change
+                </Typography>
+                {formatChange(performance.totalChange, performance.averageChangePercent)}
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Average Change
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {performance.averageChangePercent >= 0 ? '+' : ''}{performance.averageChangePercent.toFixed(2)}%
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
         )}
-      </div>
 
-      {performance && (
-        <div className="portfolio-performance">
-          <div className="performance-metric">
-            <label>Total Value</label>
-            <span className="metric-value">{formatPrice(performance.totalValue)}</span>
-          </div>
-          <div className="performance-metric">
-            <label>Total Change</label>
-            <span className="metric-value">
-              {formatChange(performance.totalChange, performance.totalChangePercent)}
-            </span>
-          </div>
-          <div className="performance-metric">
-            <label>Average Change</label>
-            <span className="metric-value">
-              {performance.averageChange ? `${performance.averageChange >= 0 ? '+' : ''}${performance.averageChange.toFixed(2)}` : '--'}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div className="portfolio-symbols">
-        <div className="add-symbol-section">
-          <input
-            type="text"
-            placeholder="Add stock symbol..."
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Add stock symbol (e.g., AAPL)"
             value={newSymbol}
             onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
             onKeyPress={(e) => e.key === 'Enter' && handleAddSymbol()}
-          />
-          <button onClick={handleAddSymbol}>Add</button>
-        </div>
-
-        {error && <div className="error-message">{error}</div>}
-
-        <div className="portfolio-stocks-list">
-          {portfolio.symbols.length === 0 ? (
-            <div className="empty-stocks">No stocks in portfolio. Add some to get started!</div>
-          ) : loading && portfolioData.length === 0 ? (
-            <div className="loading-stocks">Loading portfolio data...</div>
-          ) : (
-            portfolio.symbols.map((symbol) => {
-              const stockData = portfolioData.find(s => s.symbol === symbol);
-              return (
-                <div 
-                  key={symbol} 
-                  className={`portfolio-stock-item ${stockData ? 'clickable' : ''}`}
-                  onClick={() => stockData && onStockSelect && onStockSelect(symbol)}
+            error={!!error}
+            helperText={error}
+            InputProps={{
+              endAdornment: (
+                <Button
+                  variant="contained"
+                  onClick={handleAddSymbol}
+                  disabled={!newSymbol.trim()}
+                  size="small"
+                  sx={{
+                    ml: 1,
+                    background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                    '&:hover': {
+                      background: 'linear-gradient(45deg, #1976D2 30%, #1CB5E0 90%)',
+                    },
+                    '&.Mui-disabled': {
+                      background: 'rgba(0, 0, 0, 0.12)',
+                    },
+                  }}
                 >
-                  <div className="stock-info">
-                    <span className="stock-symbol">{symbol}</span>
-                    {stockData ? (
-                      <div className="stock-quote">
-                        <span className="stock-price">{formatPrice(stockData.price)}</span>
-                        <span className="stock-change">
-                          {formatChange(stockData.change, stockData.changePercent)}
-                        </span>
-                        {(() => {
-                          const alerts = getAlertsForSymbol(symbol);
-                          const hasActiveAlert = alerts.some(a => !a.triggered && !a.cleared);
-                          const hasTriggeredAlert = alerts.some(a => a.triggered && !a.cleared);
-                          return (
-                            <>
-                              {hasActiveAlert && (
-                                <span 
-                                  className="alert-badge active" 
-                                  title="Price alert set"
-                                  aria-label={`Price alert active for ${symbol}`}
-                                  role="status"
-                                >
-                                  <span aria-hidden="true">🔔</span>
-                                </span>
-                              )}
-                              {hasTriggeredAlert && (
-                                <span 
-                                  className="alert-badge triggered" 
-                                  title="Price alert triggered!"
-                                  aria-label={`Price alert triggered for ${symbol}!`}
-                                  role="alert"
-                                >
-                                  <span aria-hidden="true">🚨</span>
-                                </span>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <span className="stock-loading">Loading...</span>
-                    )}
-                  </div>
-                  <div className="portfolio-stock-actions">
-                    <button
-                      className="alert-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedSymbolForAlert(selectedSymbolForAlert === symbol ? null : symbol);
-                      }}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.stopPropagation();
-                          setSelectedSymbolForAlert(selectedSymbolForAlert === symbol ? null : symbol);
-                        }
-                      }}
-                      aria-label={`Set price alert for ${symbol}`}
-                      title="Set price alert"
-                      tabIndex={0}
-                    >
-                      <span aria-hidden="true">🔔</span>
-                    </button>
-                    <button
-                      className="remove-symbol-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveSymbol(symbol);
-                      }}
-                      title="Remove from portfolio"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-        
-        {selectedSymbolForAlert && (
-          <AlertManager 
-            symbol={selectedSymbolForAlert}
-            currentPrice={portfolioData.find(s => s.symbol === selectedSymbolForAlert)?.price}
+                  <AddIcon />
+                </Button>
+              ),
+            }}
           />
+        </Box>
+
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress />
+          </Box>
         )}
-      </div>
-    </div>
+
+        {portfolio.symbols.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 4, textAlign: 'center', bgcolor: 'background.default', borderRadius: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              This portfolio is empty. Add stocks to get started!
+            </Typography>
+          </Paper>
+        ) : (
+          <Box>
+            {portfolioData.map((stockData) => {
+              const symbol = stockData.symbol;
+              const alerts = getAlertsForSymbol(symbol);
+              const hasActiveAlert = alerts.some(a => !a.triggered && !a.cleared);
+              const hasTriggeredAlert = alerts.some(a => a.triggered && !a.cleared);
+
+              return (
+                <Paper
+                  key={symbol}
+                  elevation={0}
+                  onClick={() => onStockSelect && onStockSelect(symbol)}
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                      transform: 'translateY(-2px)',
+                      transition: 'transform 0.2s ease-in-out',
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                          {symbol}
+                        </Typography>
+                        {hasActiveAlert && (
+                          <Tooltip title="Price alert active">
+                            <NotificationsIcon fontSize="small" color="warning" />
+                          </Tooltip>
+                        )}
+                        {hasTriggeredAlert && (
+                          <Tooltip title="Price alert triggered!">
+                            <Badge color="error" variant="dot">
+                              <NotificationsActiveIcon fontSize="small" color="error" />
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {formatPrice(stockData.price)}
+                        </Typography>
+                        {formatChange(stockData.change, stockData.changePercent)}
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Tooltip title="Set price alert">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSymbolForAlert(selectedSymbolForAlert === symbol ? null : symbol);
+                          }}
+                          color={selectedSymbolForAlert === symbol ? 'primary' : 'default'}
+                          aria-label={`Set price alert for ${symbol}`}
+                        >
+                          <NotificationsIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Remove from portfolio">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveSymbol(symbol);
+                          }}
+                          color="error"
+                          aria-label={`Remove ${symbol}`}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                </Paper>
+              );
+            })}
+          </Box>
+        )}
+
+        <Collapse in={!!selectedSymbolForAlert}>
+          {selectedSymbolForAlert && portfolioData.find(s => s.symbol === selectedSymbolForAlert) && (
+            <Box sx={{ mt: 2 }}>
+              <AlertManager 
+                symbol={selectedSymbolForAlert}
+                currentPrice={portfolioData.find(s => s.symbol === selectedSymbolForAlert)?.price}
+              />
+            </Box>
+          )}
+        </Collapse>
+      </CardContent>
+    </Card>
   );
 }
 
 export default PortfolioView;
-

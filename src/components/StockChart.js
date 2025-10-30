@@ -1,4 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  ButtonGroup,
+  Button,
+  Box,
+  CircularProgress,
+  Alert
+} from '@mui/material';
+import {
+  ShowChart as ChartIcon,
+  BarChart as BarChartIcon
+} from '@mui/icons-material';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { fetchHistoricalData } from '../utils/api';
 
@@ -6,21 +21,13 @@ function StockChart({ symbol }) {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [interval, setInterval] = useState('daily');
-  const [chartType, setChartType] = useState('line'); // 'line' or 'bar'
+  const [timeInterval, setTimeInterval] = useState('daily');
+  const [chartType, setChartType] = useState('line');
 
-  useEffect(() => {
-    if (symbol) {
-      loadChartData(symbol, interval);
-    } else {
-      setChartData(null);
-    }
-  }, [symbol, interval]);
-
-  const loadChartData = async (stockSymbol, timeInterval) => {
+  const loadChartData = useCallback(async (stockSymbol) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const data = await fetchHistoricalData(stockSymbol, timeInterval);
       setChartData(data);
@@ -31,31 +38,46 @@ function StockChart({ symbol }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeInterval]);
 
-  // Format data for Recharts (limit to last 30 data points for readability)
+  useEffect(() => {
+    if (symbol) {
+      loadChartData(symbol);
+    } else {
+      setChartData(null);
+      setError(null);
+    }
+  }, [symbol, loadChartData]);
+
+  
+
   const formatChartData = () => {
     if (!chartData || !chartData.data || chartData.data.length === 0) {
       return [];
     }
-    
-    // Get last 30 data points and format dates
+
     const recentData = chartData.data.slice(-30).map(point => ({
       ...point,
-      dateShort: new Date(point.date).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
+      dateShort: new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
       })
     }));
-    
+
     return recentData;
   };
 
   const renderChart = () => {
     const formattedData = formatChartData();
-    
+
     if (formattedData.length === 0) {
-      return <div className="no-chart-data">No chart data available</div>;
+      return (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Typography variant="body2" color="text.secondary">
+            No chart data available
+          </Typography>
+        </Box>
+      );
     }
 
     const chartProps = {
@@ -65,44 +87,44 @@ function StockChart({ symbol }) {
 
     if (chartType === 'line') {
       return (
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={350}>
           <LineChart {...chartProps}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="dateShort" 
-              angle={-45} 
+            <XAxis
+              dataKey="dateShort"
+              angle={-45}
               textAnchor="end"
               height={60}
               interval="preserveStartEnd"
             />
             <YAxis domain={['auto', 'auto']} />
-            <Tooltip 
+            <Tooltip
               formatter={(value) => [`$${value.toFixed(2)}`, 'Close']}
               labelFormatter={(label) => `Date: ${label}`}
             />
             <Legend />
-            <Line 
-              type="monotone" 
-              dataKey="close" 
-              stroke="#007bff" 
+            <Line
+              type="monotone"
+              dataKey="close"
+              stroke="#2196F3"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 6 }}
               name="Close Price"
             />
-            <Line 
-              type="monotone" 
-              dataKey="high" 
-              stroke="#28a745" 
+            <Line
+              type="monotone"
+              dataKey="high"
+              stroke="#4CAF50"
               strokeWidth={1}
               dot={false}
               strokeDasharray="3 3"
               name="High"
             />
-            <Line 
-              type="monotone" 
-              dataKey="low" 
-              stroke="#dc3545" 
+            <Line
+              type="monotone"
+              dataKey="low"
+              stroke="#F44336"
               strokeWidth={1}
               dot={false}
               strokeDasharray="3 3"
@@ -113,23 +135,23 @@ function StockChart({ symbol }) {
       );
     } else {
       return (
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={350}>
           <BarChart {...chartProps}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="dateShort" 
-              angle={-45} 
+            <XAxis
+              dataKey="dateShort"
+              angle={-45}
               textAnchor="end"
               height={60}
               interval="preserveStartEnd"
             />
             <YAxis domain={['auto', 'auto']} />
-            <Tooltip 
+            <Tooltip
               formatter={(value) => [`$${value.toFixed(2)}`, 'Close']}
               labelFormatter={(label) => `Date: ${label}`}
             />
             <Legend />
-            <Bar dataKey="close" fill="#007bff" name="Close Price" />
+            <Bar dataKey="close" fill="#2196F3" name="Close Price" />
           </BarChart>
         </ResponsiveContainer>
       );
@@ -137,65 +159,87 @@ function StockChart({ symbol }) {
   };
 
   return (
-    <div className="stock-chart">
-      <div className="chart-header">
-        <h2>Stock Chart</h2>
-        {symbol && (
-          <div className="chart-controls">
-            <div className="interval-selector">
-              <button 
-                className={interval === 'daily' ? 'active' : ''}
-                onClick={() => setInterval('daily')}
-              >
-                Daily
-              </button>
-              <button 
-                className={interval === 'weekly' ? 'active' : ''}
-                onClick={() => setInterval('weekly')}
-              >
-                Weekly
-              </button>
-              <button 
-                className={interval === 'monthly' ? 'active' : ''}
-                onClick={() => setInterval('monthly')}
-              >
-                Monthly
-              </button>
-            </div>
-            <div className="chart-type-selector">
-              <button 
-                className={chartType === 'line' ? 'active' : ''}
-                onClick={() => setChartType('line')}
-              >
-                Line
-              </button>
-              <button 
-                className={chartType === 'bar' ? 'active' : ''}
-                onClick={() => setChartType('bar')}
-              >
-                Bar
-              </button>
-            </div>
-          </div>
+    <Card sx={{ mb: 3 }}>
+      <CardHeader
+        title={
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Typography variant="h5" component="h2">
+              Stock Chart
+            </Typography>
+            {symbol && (
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <ButtonGroup size="small" variant="outlined">
+                  <Button
+                    onClick={() => setTimeInterval('daily')}
+                    variant={timeInterval === 'daily' ? 'contained' : 'outlined'}
+                  >
+                    Daily
+                  </Button>
+                  <Button
+                    onClick={() => setTimeInterval('weekly')}
+                    variant={timeInterval === 'weekly' ? 'contained' : 'outlined'}
+                  >
+                    Weekly
+                  </Button>
+                  <Button
+                    onClick={() => setTimeInterval('monthly')}
+                    variant={timeInterval === 'monthly' ? 'contained' : 'outlined'}
+                  >
+                    Monthly
+                  </Button>
+                </ButtonGroup>
+                <ButtonGroup size="small" variant="outlined">
+                  <Button
+                    onClick={() => setChartType('line')}
+                    variant={chartType === 'line' ? 'contained' : 'outlined'}
+                    startIcon={<ChartIcon />}
+                  >
+                    Line
+                  </Button>
+                  <Button
+                    onClick={() => setChartType('bar')}
+                    variant={chartType === 'bar' ? 'contained' : 'outlined'}
+                    startIcon={<BarChartIcon />}
+                  >
+                    Bar
+                  </Button>
+                </ButtonGroup>
+              </Box>
+            )}
+          </Box>
+        }
+        sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          '& .MuiCardHeader-title': {
+            color: 'white',
+            fontWeight: 700,
+          },
+        }}
+      />
+      <CardContent>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : chartData && chartData.data ? (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
+              <strong>{chartData.symbol}</strong> - {timeInterval} data ({chartData.data.length} data points)
+            </Typography>
+            {renderChart()}
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body2" color="text.secondary">
+              {symbol ? 'No chart data available for this symbol' : 'Select a stock from watchlist to view chart'}
+            </Typography>
+          </Box>
         )}
-      </div>
-      {loading ? (
-        <div className="loading">Loading chart data...</div>
-      ) : error ? (
-        <div className="error">{error}</div>
-      ) : chartData && chartData.data ? (
-        <div className="chart-container">
-          <div className="chart-info">
-            <strong>{chartData.symbol}</strong> - {interval} data ({chartData.data.length} data points)
-          </div>
-          {renderChart()}
-        </div>
-      ) : (
-        <div className="no-data">
-          {symbol ? 'No chart data available for this symbol' : 'Select a stock from watchlist to view chart'}
-        </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

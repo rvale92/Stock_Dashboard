@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createWebSocketConnection, subscribeToSymbols } from '../utils/websocket';
+import { subscribeToSymbols } from '../utils/websocket';
 
 const FINNHUB_API_KEY = process.env.REACT_APP_FINNHUB_API_KEY || 'demo';
 
@@ -14,7 +14,6 @@ export const useWebSocket = (symbols, onUpdate, enabled = true) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const cleanupRef = useRef(null);
-  const connectionRef = useRef(null);
 
   useEffect(() => {
     if (!enabled || !symbols || (Array.isArray(symbols) && symbols.length === 0) || FINNHUB_API_KEY === 'demo') {

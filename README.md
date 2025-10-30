@@ -193,6 +193,7 @@ See `API_SETUP.md` for detailed setup instructions and `docs/api-reference.md` f
 - ✅ **Dark Mode**: Toggle between light and dark themes with persistent preference and keyboard support
 - ✅ **Accessibility**: Full ARIA support, keyboard navigation, and screen reader compatibility
 - ✅ **Alerts Dashboard**: Centralized alert management with filtering, sorting, and statistics
+- ✅ **Material-UI Design**: Modern, professional UI with gradient headers and Material icons
 - ✅ **Connection Status**: Visual indicators for WebSocket vs polling mode
 - ✅ **Error Handling**: Comprehensive error handling with user-friendly messages
 - ✅ **Loading States**: Smooth loading indicators for all API calls
@@ -206,7 +207,21 @@ See `API_SETUP.md` for detailed setup instructions and `docs/api-reference.md` f
 
 ## Latest Updates
 
-### Version 5.0 Enhancements (Latest)
+### Version 6.0 Enhancements (Latest)
+- **Material-UI Redesign**: Complete visual overhaul with MUI components
+  - Modern gradient headers and buttons
+  - Professional card-based layouts
+  - Enhanced shadows, rounded corners, and smooth transitions
+  - Material icons throughout
+  - Responsive grid layouts
+  - Improved mobile experience
+
+- **Public API Keys**: Configured for GitHub Pages deployment
+  - Finnhub sandbox demo key integrated
+  - Alpha Vantage demo key as fallback
+  - WebSocket configured for public access
+
+### Version 5.0 Enhancements
 - **Price Alerts**: Set and manage price alerts for stocks
   - Set high/low price alerts for watchlist and portfolio stocks
   - Alert badges show active and triggered alerts (🔔 🚨)

@@ -10,7 +10,8 @@ const API_CONFIG = {
     baseUrl: 'https://www.alphavantage.co/query'
   },
   finnhub: {
-    apiKey: process.env.REACT_APP_FINNHUB_API_KEY || 'demo',
+    // Finnhub sandbox demo key for public deployment
+    apiKey: process.env.REACT_APP_FINNHUB_API_KEY || 'sandbox_c0ja2ad3ad1r2jrtm9q0',
     baseUrl: 'https://finnhub.io/api/v1'
   },
   yahooFinance: {
@@ -19,7 +20,7 @@ const API_CONFIG = {
 };
 
 // Default API provider (can be changed)
-const DEFAULT_PROVIDER = 'alphaVantage';
+// const DEFAULT_PROVIDER = 'alphaVantage';
 
 // Cache configuration
 const CACHE_CONFIG = {

@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  Box,
+  Grid,
+  Paper,
+  CircularProgress,
+  Alert,
+  Chip
+} from '@mui/material';
+import {
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  Assessment as AssessmentIcon
+} from '@mui/icons-material';
 import { fetchStockQuote, fetchCompanyProfile } from '../utils/api';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { checkAlerts } from '../utils/alerts';
 
 function AnalyticsPanel({ symbol }) {
   const [quote, setQuote] = useState(null);
@@ -20,7 +38,7 @@ function AnalyticsPanel({ symbol }) {
   // WebSocket connection for real-time updates
   const handleWebSocketUpdate = (data) => {
     if (data && data.symbol === symbol && data.price) {
-      // Update quote with real-time price
+      checkAlerts(symbol, data.price);
       setQuote(prev => ({
         ...prev,
         price: data.price,
@@ -37,11 +55,14 @@ function AnalyticsPanel({ symbol }) {
 
   // Fallback polling: Refresh quote data every 60 seconds if WebSocket is not connected
   useEffect(() => {
-    if (!symbol || wsConnected) return; // Skip polling if WebSocket is active
+    if (!symbol || wsConnected) return;
 
     const updateQuote = async () => {
       try {
         const quoteData = await fetchStockQuote(symbol, false);
+        if (quoteData && quoteData.price) {
+          checkAlerts(symbol, quoteData.price);
+        }
         setQuote(prev => {
           if (prev) return quoteData;
           return quoteData;
@@ -52,18 +73,15 @@ function AnalyticsPanel({ symbol }) {
     };
 
     updateQuote();
-    const intervalId = setInterval(updateQuote, 60000); // 60 seconds
-
+    const intervalId = setInterval(updateQuote, 60000);
     return () => clearInterval(intervalId);
   }, [symbol, wsConnected]);
 
   const loadAnalytics = async (stockSymbol) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Fetch both quote and profile in parallel
-      // Use cache for initial load, but allow fresh data on manual refresh
       const [quoteData, profileData] = await Promise.all([
         fetchStockQuote(stockSymbol, true).catch(err => {
           console.error('Quote fetch failed:', err);
@@ -74,7 +92,7 @@ function AnalyticsPanel({ symbol }) {
           return null;
         })
       ]);
-      
+
       setQuote(quoteData);
       setProfile(profileData);
     } catch (err) {
@@ -86,125 +104,195 @@ function AnalyticsPanel({ symbol }) {
   };
 
   const formatNumber = (num) => {
-    if (num === null || num === undefined) return '--';
-    if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
-    if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
-    if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
-    return num.toString();
+    if (num === null || num === undefined) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(num);
   };
 
-  const formatVolume = (volume) => {
-    if (!volume) return '--';
-    return volume.toLocaleString();
+  const formatCurrency = (num) => {
+    if (num === null || num === undefined) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num);
   };
 
   const formatChange = (change, changePercent) => {
-    if (change === undefined || changePercent === undefined) return '--';
-    const sign = change >= 0 ? '+' : '';
-    const colorClass = change >= 0 ? 'positive' : 'negative';
+    if (change === undefined || changePercent === undefined) return null;
+    const isPositive = change >= 0;
     return (
-      <span className={colorClass}>
-        {sign}{change.toFixed(2)} ({sign}{changePercent.toFixed(2)}%)
-      </span>
+      <Chip
+        icon={isPositive ? <TrendingUpIcon /> : <TrendingDownIcon />}
+        label={`${change >= 0 ? '+' : ''}${formatNumber(change)} (${change >= 0 ? '+' : ''}${formatNumber(changePercent)}%)`}
+        color={isPositive ? 'success' : 'error'}
+        size="small"
+        sx={{ fontWeight: 600 }}
+      />
     );
   };
 
-  if (loading) {
-    return (
-      <div className="analytics-panel">
-        <h2>Analytics</h2>
-        <div className="loading">Loading analytics...</div>
-      </div>
-    );
-  }
-
-  if (error && !quote && !profile) {
-    return (
-      <div className="analytics-panel">
-        <h2>Analytics</h2>
-        <div className="error">{error}</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="analytics-panel">
-      <h2>Analytics {symbol && `- ${symbol}`}</h2>
-      {!symbol ? (
-        <div className="no-data">Select a stock to view analytics</div>
-      ) : (
-        <div className="analytics-content">
-          {quote && (
-            <>
-              <div className="metric">
-                <label>Price</label>
-                <span className="value-large">${quote.price?.toFixed(2) || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>Change</label>
-                <span>{formatChange(quote.change, quote.changePercent)}</span>
-              </div>
-              <div className="metric">
-                <label>Volume</label>
-                <span>{formatVolume(quote.volume)}</span>
-              </div>
-              <div className="metric">
-                <label>High (Day)</label>
-                <span>${quote.high?.toFixed(2) || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>Low (Day)</label>
-                <span>${quote.low?.toFixed(2) || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>Open</label>
-                <span>${quote.open?.toFixed(2) || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>Previous Close</label>
-                <span>${quote.previousClose?.toFixed(2) || '--'}</span>
-              </div>
-            </>
-          )}
-          {profile && (
-            <>
-              <div className="metric">
-                <label>Market Cap</label>
-                <span>{formatNumber(profile.marketCap)}</span>
-              </div>
-              <div className="metric">
-                <label>P/E Ratio</label>
-                <span>{profile.peRatio || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>Dividend Yield</label>
-                <span>{profile.dividendYield ? `${(profile.dividendYield * 100).toFixed(2)}%` : '--'}</span>
-              </div>
-              <div className="metric">
-                <label>Beta</label>
-                <span>{profile.beta || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>52 Week High</label>
-                <span>${profile['52WeekHigh'] || '--'}</span>
-              </div>
-              <div className="metric">
-                <label>52 Week Low</label>
-                <span>${profile['52WeekLow'] || '--'}</span>
-              </div>
-              <div className="metric full-width">
-                <label>Sector</label>
-                <span>{profile.sector || '--'}</span>
-              </div>
-              <div className="metric full-width">
-                <label>Industry</label>
-                <span>{profile.industry || '--'}</span>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+    <Card sx={{ mb: 3 }}>
+      <CardHeader
+        title={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AssessmentIcon />
+            <Typography variant="h5" component="h2">
+              Analytics Panel
+            </Typography>
+            {symbol && quote && (
+              <Chip
+                label={wsConnected ? '⚡ Live' : '🔄 Polling'}
+                color={wsConnected ? 'success' : 'warning'}
+                size="small"
+                sx={{ ml: 'auto' }}
+              />
+            )}
+          </Box>
+        }
+        sx={{
+          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          color: 'white',
+          '& .MuiCardHeader-title': {
+            color: 'white',
+            fontWeight: 700,
+          },
+        }}
+      />
+      <CardContent>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : symbol ? (
+          <Box>
+            {quote && (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  mb: 3,
+                  bgcolor: 'background.default',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                }}
+              >
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                      {formatCurrency(quote.price)}
+                    </Typography>
+                    {formatChange(quote.change, quote.changePercent)}
+                    {quote.volume && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Volume: {new Intl.NumberFormat('en-US').format(quote.volume)}
+                      </Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        High / Low
+                      </Typography>
+                      <Typography variant="h6">
+                        {formatCurrency(quote.high)} / {formatCurrency(quote.low)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Open: {formatCurrency(quote.open)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Paper>
+            )}
+
+            {profile && (
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Market Cap
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatCurrency(profile.marketCap)}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      P/E Ratio
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatNumber(profile.peRatio) || 'N/A'}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Sector
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {profile.sector || 'N/A'}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      52 Week High
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'success.main' }}>
+                      {formatCurrency(profile.week52High)}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      52 Week Low
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'error.main' }}>
+                      {formatCurrency(profile.week52Low)}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Dividend Yield
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {formatNumber(profile.dividendYield) || 'N/A'}%
+                    </Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+            )}
+
+            {!quote && !profile && !loading && (
+              <Alert severity="info">
+                Unable to load analytics data. Please try again later.
+              </Alert>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body2" color="text.secondary">
+              Select a stock from watchlist to view analytics
+            </Typography>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

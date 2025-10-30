@@ -1,14 +1,35 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  Typography,
+  TextField,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  IconButton,
+  Box,
+  Paper,
+  InputAdornment
+} from '@mui/material';
+import {
+  Close as CloseIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  Check as CheckIcon,
+  Cancel as CancelIcon,
+  FolderOpen as FolderIcon
+} from '@mui/icons-material';
 import { 
   getPortfolios, 
   createPortfolio, 
   deletePortfolio,
-  addSymbolToPortfolio,
-  removeSymbolFromPortfolio,
   updatePortfolio
 } from '../utils/portfolios';
-import { fetchMultipleQuotes } from '../utils/api';
-import { calculatePortfolioPerformance } from '../utils/portfolios';
 
 function PortfolioManager({ selectedPortfolioId, onPortfolioSelect, onClose }) {
   const [portfolios, setPortfolios] = useState([]);
@@ -26,7 +47,7 @@ function PortfolioManager({ selectedPortfolioId, onPortfolioSelect, onClose }) {
 
   const handleCreatePortfolio = () => {
     if (newPortfolioName.trim()) {
-      createPortfolio(newPortfolioName);
+      createPortfolio(newPortfolioName.trim());
       setNewPortfolioName('');
       loadPortfolios();
     }
@@ -62,84 +83,168 @@ function PortfolioManager({ selectedPortfolioId, onPortfolioSelect, onClose }) {
   };
 
   return (
-    <div className="portfolio-manager">
-      <div className="portfolio-manager-header">
-        <h2>Portfolios</h2>
-        <button className="close-btn" onClick={onClose}>×</button>
-      </div>
-      
-      <div className="portfolio-create">
-        <input
-          type="text"
-          placeholder="New portfolio name..."
-          value={newPortfolioName}
-          onChange={(e) => setNewPortfolioName(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleCreatePortfolio()}
-        />
-        <button onClick={handleCreatePortfolio}>Create</button>
-      </div>
-
-      <div className="portfolio-list">
-        {portfolios.length === 0 ? (
-          <div className="empty-state">No portfolios yet. Create one to get started!</div>
-        ) : (
-          portfolios.map((portfolio) => (
-            <div 
-              key={portfolio.id} 
-              className={`portfolio-item ${selectedPortfolioId === portfolio.id ? 'active' : ''}`}
-              onClick={() => onPortfolioSelect(portfolio.id)}
-            >
-              {editingId === portfolio.id ? (
-                <div className="portfolio-edit" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') handleSaveEdit(portfolio.id);
-                      if (e.key === 'Escape') handleCancelEdit();
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardHeader
+        title={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FolderIcon />
+            <Typography variant="h5">Portfolios</Typography>
+          </Box>
+        }
+        action={
+          <IconButton onClick={onClose} aria-label="Close portfolio sidebar" color="inherit">
+            <CloseIcon />
+          </IconButton>
+        }
+        sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          '& .MuiCardHeader-title': { color: 'white', fontWeight: 700 },
+        }}
+      />
+      <CardContent sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="New portfolio name..."
+            value={newPortfolioName}
+            onChange={(e) => setNewPortfolioName(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleCreatePortfolio()}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Button
+                    variant="contained"
+                    onClick={handleCreatePortfolio}
+                    disabled={!newPortfolioName.trim()}
+                    size="small"
+                    sx={{
+                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                      '&:hover': {
+                        background: 'linear-gradient(45deg, #1976D2 30%, #1CB5E0 90%)',
+                      },
+                      '&.Mui-disabled': {
+                        background: 'rgba(0, 0, 0, 0.12)',
+                      },
                     }}
-                    autoFocus
-                  />
-                  <button onClick={() => handleSaveEdit(portfolio.id)}>✓</button>
-                  <button onClick={handleCancelEdit}>✕</button>
-                </div>
-              ) : (
-                <>
-                  <div className="portfolio-info">
-                    <div className="portfolio-name">{portfolio.name}</div>
-                    <div className="portfolio-stock-count">{portfolio.symbols.length} stocks</div>
-                  </div>
-                  <div className="portfolio-actions">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditPortfolio(portfolio.id, portfolio.name);
+                  >
+                    <AddIcon />
+                  </Button>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+
+        {portfolios.length === 0 ? (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 4,
+              textAlign: 'center',
+              bgcolor: 'background.default',
+              border: '1px dashed',
+              borderColor: 'divider',
+              borderRadius: 2,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              No portfolios yet. Create one to get started!
+            </Typography>
+          </Paper>
+        ) : (
+          <List sx={{ p: 0 }}>
+            {portfolios.map((portfolio) => (
+              <ListItem
+                key={portfolio.id}
+                button
+                selected={selectedPortfolioId === portfolio.id}
+                onClick={() => onPortfolioSelect(portfolio.id)}
+                sx={{
+                  mb: 1,
+                  borderRadius: 2,
+                  border: selectedPortfolioId === portfolio.id ? 2 : 1,
+                  borderColor: selectedPortfolioId === portfolio.id ? 'primary.main' : 'divider',
+                  bgcolor: selectedPortfolioId === portfolio.id ? 'action.selected' : 'background.paper',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                {editingId === portfolio.id ? (
+                  <Box sx={{ display: 'flex', gap: 1, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(portfolio.id);
+                        if (e.key === 'Escape') handleCancelEdit();
                       }}
-                      title="Rename"
+                      autoFocus
+                      sx={{ mr: 1 }}
+                    />
+                    <IconButton
+                      size="small"
+                      color="success"
+                      onClick={() => handleSaveEdit(portfolio.id)}
                     >
-                      ✏️
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeletePortfolio(portfolio.id);
-                      }}
-                      title="Delete"
-                      className="delete-btn"
+                      <CheckIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={handleCancelEdit}
                     >
-                      🗑️
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))
+                      <CancelIcon />
+                    </IconButton>
+                  </Box>
+                ) : (
+                  <>
+                    <ListItemText
+                      primary={
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {portfolio.name}
+                        </Typography>
+                      }
+                      secondary={`${portfolio.symbols.length} ${portfolio.symbols.length === 1 ? 'stock' : 'stocks'}`}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditPortfolio(portfolio.id, portfolio.name);
+                        }}
+                        aria-label={`Rename ${portfolio.name}`}
+                        size="small"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePortfolio(portfolio.id);
+                        }}
+                        aria-label={`Delete ${portfolio.name}`}
+                        color="error"
+                        size="small"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </>
+                )}
+              </ListItem>
+            ))}
+          </List>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 export default PortfolioManager;
-
