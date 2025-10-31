@@ -264,7 +264,11 @@ export const fetchHistoricalData = async (symbol, interval = 'daily', useCache =
     const data = await response.json();
     
     if (data['Error Message'] || data['Note']) {
-      throw new Error(data['Error Message'] || data['Note'] || 'API limit reached');
+      const errorMsg = data['Error Message'] || data['Note'] || 'API limit reached';
+      if (errorMsg.includes('rate limit') || errorMsg.includes('Note')) {
+        console.warn('Alpha Vantage rate limit reached. Get your own free key at: https://www.alphavantage.co/support/#api-key');
+      }
+      throw new Error(errorMsg);
     }
     
     // Parse time series data
