@@ -2,19 +2,22 @@
 // Supports multiple API providers: Alpha Vantage, Finnhub, and Yahoo Finance
 
 // API Configuration
-// Using public/demo API keys hardcoded for GitHub Pages deployment
-// For production use, replace with environment variables
+// Alpha Vantage is the primary provider (working demo key available)
+// Finnhub is disabled by default - users can add their own key
 const API_CONFIG = {
   alphaVantage: {
-    // Alpha Vantage demo key (extremely rate-limited)
+    // Alpha Vantage demo key - 25 requests/day (shared across all users)
+    // Get your own free key at: https://www.alphavantage.co/support/#api-key
     apiKey: 'demo',
-    baseUrl: 'https://www.alphavantage.co/query'
+    baseUrl: 'https://www.alphavantage.co/query',
+    enabled: true
   },
   finnhub: {
-    // Finnhub sandbox demo key for public deployment
-    // Note: Sandbox key works with production endpoint - the key itself limits access to test data
-    apiKey: 'sandbox_c0ja2ad3ad1r2jrtm9q0',
-    baseUrl: 'https://finnhub.io/api/v1'
+    // Disabled - Finnhub doesn't provide public demo keys
+    // Users can add their own free key from https://finnhub.io/register
+    apiKey: '',
+    baseUrl: 'https://finnhub.io/api/v1',
+    enabled: false // Set to true if user provides their own key
   },
   yahooFinance: {
     baseUrl: 'https://query1.finance.yahoo.com/v8/finance/chart'
@@ -136,7 +139,12 @@ export const fetchStockQuote = async (symbol, useCache = true) => {
     
     // Check for API error messages
     if (data['Error Message'] || data['Note']) {
-      throw new Error(data['Error Message'] || data['Note'] || 'API limit reached');
+      const errorMsg = data['Error Message'] || data['Note'] || 'API limit reached';
+      // Provide helpful message for rate limits
+      if (errorMsg.includes('rate limit') || errorMsg.includes('Note')) {
+        console.warn('Alpha Vantage rate limit reached. Get your own free key at: https://www.alphavantage.co/support/#api-key');
+      }
+      throw new Error(errorMsg);
     }
     
     // Parse Alpha Vantage response
@@ -176,10 +184,15 @@ export const fetchStockQuote = async (symbol, useCache = true) => {
 
 /**
  * Fetch real-time stock quote using Finnhub (fallback provider)
+ * Only works if user has provided their own Finnhub API key
  * @param {string} symbol - Stock symbol
  * @returns {Promise} Stock quote data
  */
 const fetchStockQuoteFinnhub = async (symbol) => {
+  if (!API_CONFIG.finnhub.enabled || !API_CONFIG.finnhub.apiKey) {
+    throw new Error('Finnhub not configured - add your own API key');
+  }
+  
   const { apiKey, baseUrl } = API_CONFIG.finnhub;
   const url = `${baseUrl}/quote?symbol=${symbol}&token=${apiKey}`;
   
@@ -296,35 +309,24 @@ export const fetchStockNews = async (symbol, limit = 10) => {
     throw new Error('Stock symbol is required');
   }
 
-  try {
-    const { apiKey, baseUrl } = API_CONFIG.finnhub;
-    const url = `${baseUrl}/company-news?symbol=${symbol}&from=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&to=${new Date().toISOString().split('T')[0]}&token=${apiKey}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+  // Alpha Vantage doesn't provide news in free/demo tier
+  // Return informative placeholder
+  return [
+    {
+      title: `${symbol} Stock Information`,
+      summary: 'Alpha Vantage demo mode does not include news feeds. Get your own free API key at https://www.alphavantage.co/support/#api-key for full features, or add a Finnhub API key for real-time news.',
+      source: 'Demo Mode',
+      date: new Date().toISOString(),
+      url: 'https://www.alphavantage.co/support/#api-key'
+    },
+    {
+      title: 'Get Your Free API Key',
+      summary: 'Upgrade to your own free Alpha Vantage key to get 25 requests/day personal quota and avoid shared rate limits. Registration takes seconds!',
+      source: 'Alpha Vantage',
+      date: new Date().toISOString(),
+      url: 'https://www.alphavantage.co/support/#api-key'
     }
-    
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) {
-      return [];
-    }
-    
-    return data.slice(0, limit).map(article => ({
-      title: article.headline,
-      summary: article.summary || '',
-      source: article.source,
-      date: new Date(article.datetime * 1000).toISOString(),
-      url: article.url,
-      image: article.image
-    }));
-  } catch (error) {
-    console.error('Error fetching stock news:', error);
-    // Return empty array instead of throwing to allow app to continue
-    return [];
-  }
+  ];
 };
 
 /**
@@ -391,7 +393,11 @@ export const fetchCompanyProfile = async (symbol, useCache = true) => {
     const data = await response.json();
     
     if (data['Error Message'] || data['Note']) {
-      throw new Error(data['Error Message'] || data['Note'] || 'API limit reached');
+      const errorMsg = data['Error Message'] || data['Note'] || 'API limit reached';
+      if (errorMsg.includes('rate limit') || errorMsg.includes('Note')) {
+        console.warn('Alpha Vantage rate limit reached. Get your own free key at: https://www.alphavantage.co/support/#api-key');
+      }
+      throw new Error(errorMsg);
     }
     
     const result = {

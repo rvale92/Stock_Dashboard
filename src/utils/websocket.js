@@ -1,8 +1,6 @@
 // WebSocket utility for real-time stock price updates
-// Using Finnhub WebSocket API for live price feeds
-
-// Note: Sandbox key works with production WebSocket endpoint
-// The key itself limits access to sandbox/test data
+// WebSocket is disabled in demo mode (Alpha Vantage doesn't provide WebSocket)
+// Users can enable WebSocket by adding their own Finnhub API key
 const FINNHUB_WS_URL = 'wss://ws.finnhub.io';
 
 // Store active connections
@@ -16,7 +14,14 @@ const connections = new Map();
  * @returns {Function} Function to close the connection
  */
 export const createWebSocketConnection = (symbol, apiKey, onMessage) => {
-  if (!symbol || !apiKey) {
+  // Disabled in demo mode - Alpha Vantage doesn't provide WebSocket
+  // Users need to add their own Finnhub API key for WebSocket support
+  if (!symbol || !apiKey || apiKey === 'demo') {
+    console.log('WebSocket not available in demo mode. Using polling instead.');
+    return null;
+  }
+  
+  if (!apiKey) {
     console.warn('WebSocket requires valid API key. Using polling instead.');
     return null;
   }
@@ -115,7 +120,13 @@ export const createWebSocketConnection = (symbol, apiKey, onMessage) => {
  * @returns {Function} Function to close all connections
  */
 export const subscribeToSymbols = (symbols, apiKey, onMessage) => {
-  if (!symbols || symbols.length === 0 || !apiKey) {
+  // Disabled in demo mode
+  if (!symbols || symbols.length === 0 || !apiKey || apiKey === 'demo') {
+    console.log('WebSocket not available in demo mode. Using polling instead.');
+    return null;
+  }
+  
+  if (!apiKey) {
     return null;
   }
 

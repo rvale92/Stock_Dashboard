@@ -9,13 +9,33 @@ A React-based stock analysis dashboard and watchlist application for tracking an
 - **Analytics Panel**: View key metrics and statistics
 - **News Feed**: Stay updated with latest stock-related news
 
+## 🚀 Quick Start
+
+### Demo Mode - Works Immediately!
+
+The app works **right now** with Alpha Vantage's demo API key - no registration required!
+
+- ✅ **No setup needed** - Just clone and run
+- ✅ **All features work** - Quotes, charts, portfolios, alerts
+- ⚠️ **Shared rate limit** - 25 requests/day (shared across all demo users)
+- ⚠️ **Polling mode** - Updates every 60 seconds (no WebSocket in demo)
+
+### Get Your Own Free Key (Recommended)
+
+For personal quota and better performance:
+1. **Get free Alpha Vantage key** (30 seconds): https://www.alphavantage.co/support/#api-key
+2. Replace `'demo'` in `src/utils/api.js` with your key
+3. Enjoy your own 25 requests/day quota
+
+See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for detailed setup.
+
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js (v14 or higher)
 - npm or yarn
-- (Optional) API keys for Alpha Vantage and/or Finnhub for better performance
+- (Optional) Free API key from Alpha Vantage for personal quota
 
 ### Installation
 
@@ -30,15 +50,16 @@ A React-based stock analysis dashboard and watchlist application for tracking an
    npm install
    ```
 
-3. (Optional) Configure API keys:
-   - Copy `.env.example` to `.env`
-   - Add your API keys (see `API_SETUP.md` for details)
-   - The app works with demo keys but has rate limits
-
-4. Start the development server:
+3. Start the development server:
    ```bash
    npm start
    ```
+   The app works immediately with the demo API key!
+
+4. (Optional) Add your own API key:
+   - Get free key: https://www.alphavantage.co/support/#api-key
+   - Update `src/utils/api.js` with your key
+   - See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for details
 
 5. Open [http://localhost:3000](http://localhost:3000) to view the app
 
@@ -56,7 +77,7 @@ The app is live and ready to use. All features are fully functional including:
 - Interactive charts and technical indicators
 - Full keyboard and screen reader accessibility
 
-**Note**: The app uses **sandbox/demo API keys** hardcoded for public deployment. See [API_CONFIGURATION.md](./API_CONFIGURATION.md) for details and limitations.
+**Note**: The app uses **Alpha Vantage's demo API key** (`demo`) for public deployment. This provides immediate functionality with a shared 25 requests/day limit. For better performance, get your own free key - see [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md).
 
 ### Deploying to GitHub Pages
 
