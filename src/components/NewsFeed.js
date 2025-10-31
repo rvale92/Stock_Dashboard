@@ -38,7 +38,7 @@ function NewsFeed({ symbol }) {
     setError(null);
 
     try {
-      const newsData = await fetchStockNews(stockSymbol, 10);
+      const newsData = await fetchStockNews(stockSymbol);
       setNews(newsData);
     } catch (err) {
       console.error('Error fetching news:', err);

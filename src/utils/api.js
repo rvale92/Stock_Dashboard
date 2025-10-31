@@ -1,428 +1,152 @@
-// API utility functions for stock data
-// Supports multiple API providers: Alpha Vantage, Finnhub, and Yahoo Finance
+// Stock Analysis Dashboard - API Utilities
+// Using Alpha Vantage API ONLY
 
-// API Configuration
-// Alpha Vantage is the primary provider (working demo key available)
-// Finnhub is disabled by default - users can add their own key
-const API_CONFIG = {
-  alphaVantage: {
-    // Alpha Vantage demo key - 25 requests/day (shared across all users)
-    // Get your own free key at: https://www.alphavantage.co/support/#api-key
-    apiKey: 'demo',
-    baseUrl: 'https://www.alphavantage.co/query',
-    enabled: true
-  },
-  finnhub: {
-    // Disabled - Finnhub doesn't provide public demo keys
-    // Users can add their own free key from https://finnhub.io/register
-    apiKey: '',
-    baseUrl: 'https://finnhub.io/api/v1',
-    enabled: false // Set to true if user provides their own key
-  },
-  yahooFinance: {
-    baseUrl: 'https://query1.finance.yahoo.com/v8/finance/chart'
+const ALPHA_VANTAGE_KEY = 'demo';
+const BASE_URL = 'https://www.alphavantage.co/query';
+
+// Simple cache to reduce API calls
+const cache = {};
+const CACHE_TTL = 60000; // 1 minute
+
+function getCache(key) {
+  const item = cache[key];
+  if (item && Date.now() - item.time < CACHE_TTL) {
+    return item.data;
   }
-};
+  return null;
+}
 
-// Default API provider (can be changed)
-// const DEFAULT_PROVIDER = 'alphaVantage';
+function setCache(key, data) {
+  cache[key] = { data, time: Date.now() };
+}
 
-// Cache configuration
-const CACHE_CONFIG = {
-  quote: { ttl: 60 * 1000 }, // 1 minute for quotes
-  historical: { ttl: 5 * 60 * 1000 }, // 5 minutes for historical data
-  profile: { ttl: 60 * 60 * 1000 }, // 1 hour for company profiles
-  news: { ttl: 10 * 60 * 1000 } // 10 minutes for news
-};
-
-/**
- * Get cached data if available and not expired
- * @param {string} key - Cache key
- * @param {number} ttl - Time to live in milliseconds
- * @returns {object|null} Cached data or null
- */
-const getCachedData = (key, ttl) => {
-  try {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    
-    const { data, timestamp } = JSON.parse(cached);
-    const now = Date.now();
-    
-    if (now - timestamp > ttl) {
-      localStorage.removeItem(key);
-      return null;
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Error reading cache:', error);
-    return null;
-  }
-};
-
-/**
- * Set data in cache
- * @param {string} key - Cache key
- * @param {object} data - Data to cache
- */
-const setCachedData = (key, data) => {
-  try {
-    localStorage.setItem(key, JSON.stringify({
-      data,
-      timestamp: Date.now()
-    }));
-  } catch (error) {
-    console.error('Error setting cache:', error);
-    // If storage is full, clear old cache entries
-    if (error.name === 'QuotaExceededError') {
-      clearOldCache();
-    }
-  }
-};
-
-/**
- * Clear old cache entries to free up space
- */
-const clearOldCache = () => {
-  try {
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith('cache_')) {
-        const cached = localStorage.getItem(key);
-        if (cached) {
-          const { timestamp } = JSON.parse(cached);
-          // Remove entries older than 24 hours
-          if (Date.now() - timestamp > 24 * 60 * 60 * 1000) {
-            localStorage.removeItem(key);
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error clearing cache:', error);
-  }
-};
-
-/**
- * Fetch real-time stock quote using Alpha Vantage
- * @param {string} symbol - Stock symbol
- * @param {boolean} useCache - Whether to use cache (default: true)
- * @returns {Promise} Stock quote data
- */
-export const fetchStockQuote = async (symbol, useCache = true) => {
-  if (!symbol) {
-    throw new Error('Stock symbol is required');
+// Fetch stock quote
+export async function fetchStockQuote(symbol) {
+  const cacheKey = `quote_${symbol}`;
+  const cached = getCache(cacheKey);
+  if (cached) {
+    console.log(`Using cached data for ${symbol}`);
+    return cached;
   }
 
-  const cacheKey = `cache_quote_${symbol}`;
-  
-  // Check cache first
-  if (useCache) {
-    const cached = getCachedData(cacheKey, CACHE_CONFIG.quote.ttl);
-    if (cached) {
-      return cached;
-    }
-  }
+  const url = `${BASE_URL}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
+  console.log(`Fetching quote from Alpha Vantage: ${symbol}`);
 
-  try {
-    const { apiKey, baseUrl } = API_CONFIG.alphaVantage;
-    const url = `${baseUrl}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Check for API error messages
-    if (data['Error Message'] || data['Note']) {
-      const errorMsg = data['Error Message'] || data['Note'] || 'API limit reached';
-      // Provide helpful message for rate limits
-      if (errorMsg.includes('rate limit') || errorMsg.includes('Note')) {
-        console.warn('Alpha Vantage rate limit reached. Get your own free key at: https://www.alphavantage.co/support/#api-key');
-      }
-      throw new Error(errorMsg);
-    }
-    
-    // Parse Alpha Vantage response
-    const quote = data['Global Quote'];
-    if (!quote || !quote['05. price']) {
-      // Fallback to alternative API if Alpha Vantage fails
-      return await fetchStockQuoteFinnhub(symbol);
-    }
-    
-    const result = {
-      symbol: quote['01. symbol'],
-      price: parseFloat(quote['05. price']),
-      change: parseFloat(quote['09. change']),
-      changePercent: parseFloat(quote['10. change percent']?.replace('%', '')),
-      volume: parseInt(quote['06. volume']),
-      high: parseFloat(quote['03. high']),
-      low: parseFloat(quote['04. low']),
-      open: parseFloat(quote['02. open']),
-      previousClose: parseFloat(quote['08. previous close']),
-      timestamp: quote['07. latest trading day']
-    };
-    
-    // Cache the result
-    setCachedData(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error('Error fetching stock quote (Alpha Vantage):', error);
-    // Fallback to Finnhub
-    try {
-      return await fetchStockQuoteFinnhub(symbol);
-    } catch (fallbackError) {
-      console.error('Fallback API also failed:', fallbackError);
-      throw new Error(`Failed to fetch stock quote: ${error.message}`);
-    }
-  }
-};
-
-/**
- * Fetch real-time stock quote using Finnhub (fallback provider)
- * Only works if user has provided their own Finnhub API key
- * @param {string} symbol - Stock symbol
- * @returns {Promise} Stock quote data
- */
-const fetchStockQuoteFinnhub = async (symbol) => {
-  if (!API_CONFIG.finnhub.enabled || !API_CONFIG.finnhub.apiKey) {
-    throw new Error('Finnhub not configured - add your own API key');
-  }
-  
-  const { apiKey, baseUrl } = API_CONFIG.finnhub;
-  const url = `${baseUrl}/quote?symbol=${symbol}&token=${apiKey}`;
-  
   const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Finnhub API error: ${response.status}`);
-  }
-  
   const data = await response.json();
-  
-  if (data.c === 0) {
-    throw new Error('Invalid symbol or no data available');
+
+  if (data['Error Message']) {
+    throw new Error(`Invalid symbol: ${symbol}`);
   }
-  
-  return {
+
+  if (data['Note']) {
+    throw new Error('Rate limit reached. Please wait and try again.');
+  }
+
+  const quote = data['Global Quote'];
+  if (!quote || Object.keys(quote).length === 0) {
+    throw new Error(`No data available for ${symbol}`);
+  }
+
+  const result = {
     symbol: symbol,
-    price: data.c, // current price
-    change: data.d, // change
-    changePercent: data.dp, // percent change
-    high: data.h, // high price of the day
-    low: data.l, // low price of the day
-    open: data.o, // open price of the day
-    previousClose: data.pc, // previous close price
-    timestamp: new Date(data.t * 1000).toISOString()
+    price: parseFloat(quote['05. price']) || 0,
+    change: parseFloat(quote['09. change']) || 0,
+    changePercent: parseFloat(quote['10. change percent']?.replace('%', '')) || 0,
+    high: parseFloat(quote['03. high']) || 0,
+    low: parseFloat(quote['04. low']) || 0,
+    open: parseFloat(quote['02. open']) || 0,
+    previousClose: parseFloat(quote['08. previous close']) || 0,
+    volume: parseInt(quote['06. volume']) || 0
   };
-};
 
-/**
- * Fetch historical stock data
- * @param {string} symbol - Stock symbol
- * @param {string} interval - Time interval (1min, 5min, daily, weekly, monthly)
- * @param {boolean} useCache - Whether to use cache (default: true)
- * @returns {Promise} Historical stock data
- */
-export const fetchHistoricalData = async (symbol, interval = 'daily', useCache = true) => {
-  if (!symbol) {
-    throw new Error('Stock symbol is required');
+  setCache(cacheKey, result);
+  return result;
+}
+
+// Fetch historical data
+export async function fetchHistoricalData(symbol, interval = 'daily') {
+  const cacheKey = `history_${symbol}_${interval}`;
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  const functions = {
+    daily: 'TIME_SERIES_DAILY',
+    weekly: 'TIME_SERIES_WEEKLY',
+    monthly: 'TIME_SERIES_MONTHLY'
+  };
+
+  const url = `${BASE_URL}?function=${functions[interval]}&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (data['Error Message'] || data['Note']) {
+    throw new Error('Unable to fetch historical data');
   }
 
-  const cacheKey = `cache_historical_${symbol}_${interval}`;
-  
-  // Check cache first
-  if (useCache) {
-    const cached = getCachedData(cacheKey, CACHE_CONFIG.historical.ttl);
-    if (cached) {
-      return cached;
-    }
+  const timeSeriesKey = Object.keys(data).find(k => k.includes('Time Series'));
+  if (!timeSeriesKey) {
+    throw new Error('No historical data available');
   }
 
-  try {
-    const { apiKey, baseUrl } = API_CONFIG.alphaVantage;
-    
-    // Map interval to Alpha Vantage function
-    const functionMap = {
-      'daily': 'TIME_SERIES_DAILY',
-      'weekly': 'TIME_SERIES_WEEKLY',
-      'monthly': 'TIME_SERIES_MONTHLY'
-    };
-    
-    const functionName = functionMap[interval] || 'TIME_SERIES_DAILY';
-    const url = `${baseUrl}?function=${functionName}&symbol=${symbol}&apikey=${apiKey}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data['Error Message'] || data['Note']) {
-      const errorMsg = data['Error Message'] || data['Note'] || 'API limit reached';
-      if (errorMsg.includes('rate limit') || errorMsg.includes('Note')) {
-        console.warn('Alpha Vantage rate limit reached. Get your own free key at: https://www.alphavantage.co/support/#api-key');
-      }
-      throw new Error(errorMsg);
-    }
-    
-    // Parse time series data
-    const timeSeriesKey = Object.keys(data).find(key => key.includes('Time Series'));
-    if (!timeSeriesKey) {
-      throw new Error('No time series data found');
-    }
-    
-    const timeSeries = data[timeSeriesKey];
-    const dates = Object.keys(timeSeries).sort();
-    
-    const result = {
-      symbol: symbol,
-      interval: interval,
-      data: dates.map(date => ({
-        date: date,
-        open: parseFloat(timeSeries[date]['1. open']),
-        high: parseFloat(timeSeries[date]['2. high']),
-        low: parseFloat(timeSeries[date]['3. low']),
-        close: parseFloat(timeSeries[date]['4. close']),
-        volume: parseInt(timeSeries[date]['5. volume'])
+  const result = {
+    symbol: symbol,
+    interval: interval,
+    data: Object.entries(data[timeSeriesKey])
+      .slice(0, 100)
+      .map(([date, values]) => ({
+        date,
+        open: parseFloat(values['1. open']),
+        high: parseFloat(values['2. high']),
+        low: parseFloat(values['3. low']),
+        close: parseFloat(values['4. close']),
+        volume: parseInt(values['5. volume'])
       }))
-    };
-    
-    // Cache the result
-    setCachedData(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error('Error fetching historical data:', error);
-    throw new Error(`Failed to fetch historical data: ${error.message}`);
-  }
-};
+      .reverse()
+  };
 
-/**
- * Fetch stock news
- * @param {string} symbol - Stock symbol
- * @param {number} limit - Number of news articles to fetch
- * @returns {Promise} Stock news data
- */
-export const fetchStockNews = async (symbol, limit = 10) => {
-  if (!symbol) {
-    throw new Error('Stock symbol is required');
-  }
+  setCache(cacheKey, result);
+  return result;
+}
 
-  // Alpha Vantage doesn't provide news in free/demo tier
-  // Return informative placeholder
-  return [
-    {
-      title: `${symbol} Stock Information`,
-      summary: 'Alpha Vantage demo mode does not include news feeds. Get your own free API key at https://www.alphavantage.co/support/#api-key for full features, or add a Finnhub API key for real-time news.',
-      source: 'Demo Mode',
-      date: new Date().toISOString(),
-      url: 'https://www.alphavantage.co/support/#api-key'
-    },
-    {
-      title: 'Get Your Free API Key',
-      summary: 'Upgrade to your own free Alpha Vantage key to get 25 requests/day personal quota and avoid shared rate limits. Registration takes seconds!',
-      source: 'Alpha Vantage',
-      date: new Date().toISOString(),
-      url: 'https://www.alphavantage.co/support/#api-key'
-    }
-  ];
-};
+// Fetch company profile (basic)
+export async function fetchCompanyProfile(symbol) {
+  return {
+    symbol,
+    name: symbol,
+    exchange: 'US Market',
+    currency: 'USD',
+    country: 'USA'
+  };
+}
 
-/**
- * Fetch multiple stock quotes at once
- * @param {string[]} symbols - Array of stock symbols
- * @returns {Promise} Array of stock quotes
- */
-export const fetchMultipleQuotes = async (symbols) => {
-  if (!symbols || symbols.length === 0) {
-    return [];
-  }
+// Fetch news (placeholder)
+export async function fetchNews(symbol) {
+  return [{
+    title: `${symbol} Market Information`,
+    summary: 'Alpha Vantage demo mode does not include news feeds. Get your own free API key at https://www.alphavantage.co/support/#api-key for full features.',
+    source: 'Demo Mode',
+    date: new Date().toISOString(),
+    url: 'https://www.alphavantage.co/support/#api-key'
+  }];
+}
 
-  try {
-    // Fetch quotes sequentially to avoid rate limiting
-    // In production, consider implementing rate limiting and caching
-    const quotes = [];
-    
-    for (const symbol of symbols) {
-      try {
-        const quote = await fetchStockQuote(symbol);
-        quotes.push(quote);
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (error) {
-        console.error(`Failed to fetch quote for ${symbol}:`, error);
-        quotes.push({ symbol, error: error.message });
-      }
-    }
-    
-    return quotes;
-  } catch (error) {
-    console.error('Error fetching multiple quotes:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch company overview/profile
- * @param {string} symbol - Stock symbol
- * @param {boolean} useCache - Whether to use cache (default: true)
- * @returns {Promise} Company profile data
- */
-export const fetchCompanyProfile = async (symbol, useCache = true) => {
-  const cacheKey = `cache_profile_${symbol}`;
-  
-  // Check cache first
-  if (useCache) {
-    const cached = getCachedData(cacheKey, CACHE_CONFIG.profile.ttl);
-    if (cached) {
-      return cached;
+// Fetch multiple quotes
+export async function fetchMultipleQuotes(symbols) {
+  const quotes = [];
+  for (const symbol of symbols) {
+    try {
+      const quote = await fetchStockQuote(symbol);
+      quotes.push(quote);
+    } catch (error) {
+      quotes.push({ symbol, error: error.message });
     }
   }
+  return quotes;
+}
 
-  try {
-    const { apiKey, baseUrl } = API_CONFIG.alphaVantage;
-    const url = `${baseUrl}?function=OVERVIEW&symbol=${symbol}&apikey=${apiKey}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data['Error Message'] || data['Note']) {
-      const errorMsg = data['Error Message'] || data['Note'] || 'API limit reached';
-      if (errorMsg.includes('rate limit') || errorMsg.includes('Note')) {
-        console.warn('Alpha Vantage rate limit reached. Get your own free key at: https://www.alphavantage.co/support/#api-key');
-      }
-      throw new Error(errorMsg);
-    }
-    
-    const result = {
-      symbol: data.Symbol,
-      name: data.Name,
-      description: data.Description,
-      marketCap: data.MarketCapitalization,
-      peRatio: data.PERatio,
-      dividendYield: data.DividendYield,
-      beta: data.Beta,
-      '52WeekHigh': data['52WeekHigh'],
-      '52WeekLow': data['52WeekLow'],
-      sector: data.Sector,
-      industry: data.Industry
-    };
-    
-    // Cache the result
-    setCachedData(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error('Error fetching company profile:', error);
-    throw new Error(`Failed to fetch company profile: ${error.message}`);
-  }
-};
+// Fetch stock news (alias for compatibility)
+export async function fetchStockNews(symbol, limit = 10) {
+  const news = await fetchNews(symbol);
+  return news.slice(0, limit);
+}

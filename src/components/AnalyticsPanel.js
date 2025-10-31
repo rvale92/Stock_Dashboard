@@ -35,47 +35,29 @@ function AnalyticsPanel({ symbol }) {
     }
   }, [symbol]);
 
-  // WebSocket connection for real-time updates
-  const handleWebSocketUpdate = (data) => {
-    if (data && data.symbol === symbol && data.price) {
-      checkAlerts(symbol, data.price);
-      setQuote(prev => ({
-        ...prev,
-        price: data.price,
-        timestamp: data.timestamp || new Date().toISOString()
-      }));
-    }
-  };
+  // WebSocket not available in Alpha Vantage demo mode - use polling only
+  useWebSocket(symbol ? [symbol] : []);
 
-  const { isConnected: wsConnected } = useWebSocket(
-    symbol,
-    handleWebSocketUpdate,
-    !!symbol
-  );
-
-  // Fallback polling: Refresh quote data every 60 seconds if WebSocket is not connected
+  // Polling: Refresh quote data every 60 seconds
   useEffect(() => {
-    if (!symbol || wsConnected) return;
+    if (!symbol) return;
 
     const updateQuote = async () => {
       try {
-        const quoteData = await fetchStockQuote(symbol, false);
+        const quoteData = await fetchStockQuote(symbol);
         if (quoteData && quoteData.price) {
           checkAlerts(symbol, quoteData.price);
         }
-        setQuote(prev => {
-          if (prev) return quoteData;
-          return quoteData;
-        });
+        setQuote(quoteData);
       } catch (err) {
-        console.error(`Error updating quote for ${symbol}:`, err);
+        console.error(`Error updating quote for ${symbol}:`, err.message);
       }
     };
 
     updateQuote();
     const intervalId = setInterval(updateQuote, 60000);
     return () => clearInterval(intervalId);
-  }, [symbol, wsConnected]);
+  }, [symbol]);
 
   const loadAnalytics = async (stockSymbol) => {
     setLoading(true);
@@ -83,11 +65,11 @@ function AnalyticsPanel({ symbol }) {
 
     try {
       const [quoteData, profileData] = await Promise.all([
-        fetchStockQuote(stockSymbol, true).catch(err => {
+        fetchStockQuote(stockSymbol).catch(err => {
           console.error('Quote fetch failed:', err);
           return null;
         }),
-        fetchCompanyProfile(stockSymbol, true).catch(err => {
+        fetchCompanyProfile(stockSymbol).catch(err => {
           console.error('Profile fetch failed:', err);
           return null;
         })
@@ -146,8 +128,8 @@ function AnalyticsPanel({ symbol }) {
             </Typography>
             {symbol && quote && (
               <Chip
-                label={wsConnected ? '⚡ Live' : '🔄 Polling'}
-                color={wsConnected ? 'success' : 'warning'}
+                label="🔄 Polling"
+                color="warning"
                 size="small"
                 sx={{ ml: 'auto' }}
               />

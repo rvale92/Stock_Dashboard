@@ -67,49 +67,24 @@ function Watchlist({ onStockSelect }) {
     }
   }, [stocks]);
 
-  // WebSocket connection for real-time updates
-  const handleWebSocketUpdate = (data) => {
-    if (data && data.symbol && data.price) {
-      // Check for alerts first
-      const triggered = checkAlerts(data.symbol, data.price);
-      
-      // Update stock data with real-time price
-      setStockData(prev => ({
-        ...prev,
-        [data.symbol]: {
-          ...prev[data.symbol],
-          price: data.price,
-          timestamp: data.timestamp || new Date().toISOString()
-        }
-      }));
-      
-      // If alerts triggered, force re-render
-      if (triggered.length > 0) {
-        setStockData(prev => ({ ...prev }));
-      }
-    }
-  };
+  // WebSocket not available in Alpha Vantage demo mode - use polling only
+  useWebSocket(stocks);
 
-  const { isConnected: wsConnected } = useWebSocket(
-    stocks.length > 0 ? stocks : null,
-    handleWebSocketUpdate,
-    stocks.length > 0
-  );
-
-  // Fallback polling: Refresh stock quotes every 60 seconds if WebSocket is not connected
+  // Polling: Refresh stock quotes every 60 seconds
   useEffect(() => {
-    if (stocks.length === 0 || wsConnected) return;
+    if (stocks.length === 0) return;
 
     const updateAllStocks = async () => {
       for (const stock of stocks) {
         try {
-          const data = await fetchStockQuote(stock, false);
+          const data = await fetchStockQuote(stock);
           if (data && data.price) {
             checkAlerts(stock, data.price);
           }
           setStockData(prev => ({ ...prev, [stock]: data }));
         } catch (err) {
-          console.error(`Error updating ${stock}:`, err);
+          console.error(`Error updating ${stock}:`, err.message);
+          setError(prev => ({ ...prev, [stock]: err.message }));
         }
       }
     };
@@ -117,7 +92,7 @@ function Watchlist({ onStockSelect }) {
     updateAllStocks();
     const intervalId = setInterval(updateAllStocks, 60000);
     return () => clearInterval(intervalId);
-  }, [stocks, wsConnected]);
+  }, [stocks]);
 
   const fetchStockData = async (stockSymbol) => {
     setLoading(prev => ({ ...prev, [stockSymbol]: true }));
@@ -136,8 +111,8 @@ function Watchlist({ onStockSelect }) {
         }
       }
     } catch (err) {
-      console.error(`Error fetching data for ${stockSymbol}:`, err);
-      setError(prev => ({ ...prev, [stockSymbol]: err.message }));
+      console.error(`Error fetching ${stockSymbol}:`, err.message);
+      setError(prev => ({ ...prev, [stockSymbol]: `Failed to fetch ${stockSymbol}: ${err.message}` }));
     } finally {
       setLoading(prev => ({ ...prev, [stockSymbol]: false }));
     }
@@ -222,8 +197,8 @@ function Watchlist({ onStockSelect }) {
             </Typography>
             {stocks.length > 0 && (
               <Chip
-                label={wsConnected ? '⚡ Live' : '🔄 Polling'}
-                color={wsConnected ? 'success' : 'warning'}
+                label="🔄 Polling"
+                color="warning"
                 size="small"
                 sx={{ fontWeight: 600 }}
               />
