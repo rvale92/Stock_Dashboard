@@ -1,9 +1,9 @@
 // WebSocket utility for real-time stock price updates
 // Using Finnhub WebSocket API for live price feeds
 
-// Using sandbox WebSocket endpoint
-// API key is passed as parameter to functions (see useWebSocket.js)
-const FINNHUB_WS_URL = 'wss://sandbox.finnhub.io';
+// Note: Sandbox key works with production WebSocket endpoint
+// The key itself limits access to sandbox/test data
+const FINNHUB_WS_URL = 'wss://ws.finnhub.io';
 
 // Store active connections
 const connections = new Map();

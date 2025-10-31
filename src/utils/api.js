@@ -12,9 +12,9 @@ const API_CONFIG = {
   },
   finnhub: {
     // Finnhub sandbox demo key for public deployment
+    // Note: Sandbox key works with production endpoint - the key itself limits access to test data
     apiKey: 'sandbox_c0ja2ad3ad1r2jrtm9q0',
-    // Using sandbox endpoint for public deployment
-    baseUrl: 'https://sandbox.finnhub.io/api/v1'
+    baseUrl: 'https://finnhub.io/api/v1'
   },
   yahooFinance: {
     baseUrl: 'https://query1.finance.yahoo.com/v8/finance/chart'

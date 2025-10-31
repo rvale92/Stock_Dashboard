@@ -2,20 +2,20 @@
 
 ## Overview
 
-This dashboard uses **public/demo API keys** hardcoded for GitHub Pages deployment. All API calls use **sandbox endpoints** to ensure compatibility with demo keys.
+This dashboard uses **public/demo API keys** hardcoded for GitHub Pages deployment. The sandbox API key is used with **production endpoints** - the key itself restricts access to sandbox/test data.
 
 ## API Providers
 
 ### 1. Finnhub (Primary)
 - **Sandbox Key**: `sandbox_c0ja2ad3ad1r2jrtm9q0`
-- **Sandbox Endpoint**: `https://sandbox.finnhub.io/api/v1`
-- **WebSocket Endpoint**: `wss://sandbox.finnhub.io`
+- **Endpoint**: `https://finnhub.io/api/v1` (production endpoint)
+- **WebSocket Endpoint**: `wss://ws.finnhub.io` (production endpoint)
 - **Used For**:
   - Stock quotes (fallback)
   - Company news
   - Real-time WebSocket updates
 
-**Note**: Sandbox data may be simulated/delayed. For production, use paid API keys with production endpoints.
+**Important**: Finnhub doesn't use separate sandbox domains. The sandbox key works with the **production endpoints**, but the key itself restricts access to sandbox/test data. The sandbox key provides limited/simulated data for testing purposes.
 
 ### 2. Alpha Vantage (Primary for Quotes)
 - **Demo Key**: `demo`
@@ -46,10 +46,11 @@ This dashboard uses **public/demo API keys** hardcoded for GitHub Pages deployme
    - [Alpha Vantage](https://www.alphavantage.co/) - Free tier: 5 calls/minute, 500/day
 
 2. **Update Configuration**:
-   - Replace hardcoded keys with environment variables
-   - Use production endpoints:
+   - Replace sandbox key with production API key
+   - Endpoints remain the same:
      - Finnhub: `https://finnhub.io/api/v1`
      - WebSocket: `wss://ws.finnhub.io`
+   - Use environment variables for production keys
 
 3. **Environment Variables** (for production):
    ```bash
@@ -78,16 +79,22 @@ The app implements fallback logic:
 
 ## WebSocket Connection
 
-- **Sandbox**: Uses `wss://sandbox.finnhub.io`
+- **Endpoint**: Uses `wss://ws.finnhub.io` (same for sandbox and production)
+- **Sandbox Key**: Limits WebSocket to test data
 - **Fallback**: Polling every 60 seconds if WebSocket unavailable
 - **Reconnection**: Automatic on connection loss
 
 ## Troubleshooting
 
+### DNS/Network Errors (ERR_NAME_NOT_RESOLVED)
+- **Cause**: Trying to use non-existent `sandbox.finnhub.io` domain
+- **Solution**: Use production endpoints (`finnhub.io`) with sandbox key
+- **Fix**: Sandbox key works with production endpoint - the key itself limits data, not the domain
+
 ### 401 Unauthorized Errors
 - **Cause**: Invalid or expired API key
 - **Solution**: Verify sandbox key is correct (`sandbox_c0ja2ad3ad1r2jrtm9q0`)
-- **Check**: Ensure using sandbox endpoints, not production
+- **Check**: Ensure using production endpoints (`finnhub.io`, not `sandbox.finnhub.io`)
 
 ### Rate Limit Errors
 - **Cause**: Too many API calls
@@ -102,9 +109,10 @@ The app implements fallback logic:
 - **Note**: Sandbox may have limited symbol coverage
 
 ### WebSocket Not Connecting
-- **Cause**: Sandbox WebSocket may be limited
+- **Cause**: Sandbox key may have limited WebSocket access
 - **Solution**: App automatically falls back to polling
 - **Indicator**: Shows "🔄 Polling" instead of "⚡ Live"
+- **Note**: Verify endpoint is `wss://ws.finnhub.io` (not sandbox subdomain)
 
 ## Security Notes
 
