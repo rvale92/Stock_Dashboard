@@ -2,17 +2,19 @@
 // Supports multiple API providers: Alpha Vantage, Finnhub, and Yahoo Finance
 
 // API Configuration
-// Set your API keys in environment variables or use demo keys
-// For production, use: process.env.REACT_APP_ALPHA_VANTAGE_API_KEY
+// Using public/demo API keys hardcoded for GitHub Pages deployment
+// For production use, replace with environment variables
 const API_CONFIG = {
   alphaVantage: {
-    apiKey: process.env.REACT_APP_ALPHA_VANTAGE_API_KEY || 'demo',
+    // Alpha Vantage demo key (extremely rate-limited)
+    apiKey: 'demo',
     baseUrl: 'https://www.alphavantage.co/query'
   },
   finnhub: {
     // Finnhub sandbox demo key for public deployment
-    apiKey: process.env.REACT_APP_FINNHUB_API_KEY || 'sandbox_c0ja2ad3ad1r2jrtm9q0',
-    baseUrl: 'https://finnhub.io/api/v1'
+    apiKey: 'sandbox_c0ja2ad3ad1r2jrtm9q0',
+    // Using sandbox endpoint for public deployment
+    baseUrl: 'https://sandbox.finnhub.io/api/v1'
   },
   yahooFinance: {
     baseUrl: 'https://query1.finance.yahoo.com/v8/finance/chart'

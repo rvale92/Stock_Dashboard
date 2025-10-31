@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { subscribeToSymbols } from '../utils/websocket';
 
-const FINNHUB_API_KEY = process.env.REACT_APP_FINNHUB_API_KEY || 'demo';
+// Using Finnhub sandbox demo key (hardcoded for public deployment)
+const FINNHUB_API_KEY = 'sandbox_c0ja2ad3ad1r2jrtm9q0';
 
 /**
  * Custom hook for WebSocket connections
@@ -16,7 +17,7 @@ export const useWebSocket = (symbols, onUpdate, enabled = true) => {
   const cleanupRef = useRef(null);
 
   useEffect(() => {
-    if (!enabled || !symbols || (Array.isArray(symbols) && symbols.length === 0) || FINNHUB_API_KEY === 'demo') {
+    if (!enabled || !symbols || (Array.isArray(symbols) && symbols.length === 0) || !FINNHUB_API_KEY) {
       // Fallback to polling if WebSocket is not available
       setIsConnected(false);
       return;

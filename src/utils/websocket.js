@@ -1,9 +1,9 @@
 // WebSocket utility for real-time stock price updates
 // Using Finnhub WebSocket API for live price feeds
 
-// Using Finnhub sandbox demo key for public deployment
-const FINNHUB_API_KEY = process.env.REACT_APP_FINNHUB_API_KEY || 'sandbox_c0ja2ad3ad1r2jrtm9q0';
-const FINNHUB_WS_URL = `wss://ws.finnhub.io?token=${FINNHUB_API_KEY}`;
+// Using sandbox WebSocket endpoint
+// API key is passed as parameter to functions (see useWebSocket.js)
+const FINNHUB_WS_URL = 'wss://sandbox.finnhub.io';
 
 // Store active connections
 const connections = new Map();
@@ -16,7 +16,7 @@ const connections = new Map();
  * @returns {Function} Function to close the connection
  */
 export const createWebSocketConnection = (symbol, apiKey, onMessage) => {
-  if (!symbol || !apiKey || apiKey === 'demo') {
+  if (!symbol || !apiKey) {
     console.warn('WebSocket requires valid API key. Using polling instead.');
     return null;
   }
@@ -37,6 +37,7 @@ export const createWebSocketConnection = (symbol, apiKey, onMessage) => {
   }
 
   try {
+    // Use sandbox WebSocket endpoint with token
     const ws = new WebSocket(`${FINNHUB_WS_URL}?token=${apiKey}`);
     const subscribers = new Set([onMessage]);
 
@@ -114,7 +115,7 @@ export const createWebSocketConnection = (symbol, apiKey, onMessage) => {
  * @returns {Function} Function to close all connections
  */
 export const subscribeToSymbols = (symbols, apiKey, onMessage) => {
-  if (!symbols || symbols.length === 0 || !apiKey || apiKey === 'demo') {
+  if (!symbols || symbols.length === 0 || !apiKey) {
     return null;
   }
 

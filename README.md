@@ -56,7 +56,7 @@ The app is live and ready to use. All features are fully functional including:
 - Interactive charts and technical indicators
 - Full keyboard and screen reader accessibility
 
-**Note**: For best experience, configure API keys (see API_SETUP.md). The app works with demo keys but has strict rate limits.
+**Note**: The app uses **sandbox/demo API keys** hardcoded for public deployment. See [API_CONFIGURATION.md](./API_CONFIGURATION.md) for details and limitations.
 
 ### Deploying to GitHub Pages
 
