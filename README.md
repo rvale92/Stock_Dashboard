@@ -11,31 +11,32 @@ A React-based stock analysis dashboard and watchlist application for tracking an
 
 ## 🚀 Quick Start
 
-### Demo Mode - Works Immediately!
+### Yahoo Finance Integration - No API Key Required!
 
-The app works **right now** with Alpha Vantage's demo API key - no registration required!
+The app uses **Yahoo Finance** via `yahoo-finance2` package - completely free and no registration needed!
 
-- ✅ **No setup needed** - Just clone and run
+- ✅ **No setup needed** - Just clone, install, and run
+- ✅ **No API key required** - Yahoo Finance is free forever
+- ✅ **Better rate limits** - 20+ requests/minute (vs 5/min for Alpha Vantage)
 - ✅ **All features work** - Quotes, charts, portfolios, alerts
-- ⚠️ **Shared rate limit** - 25 requests/day (shared across all demo users)
-- ⚠️ **Polling mode** - Updates every 60 seconds (no WebSocket in demo)
+- ✅ **Proxy server** - Backend proxy handles all API calls with caching
 
-### Get Your Own Free Key (Recommended)
+### Start Development Server
 
-For personal quota and better performance:
-1. **Get free Alpha Vantage key** (30 seconds): https://www.alphavantage.co/support/#api-key
-2. Replace `'demo'` in `src/utils/api.js` with your key
-3. Enjoy your own 25 requests/day quota
+1. Install dependencies: `npm install`
+2. Start both proxy and React: `npm run start:dev`
+3. Access app at http://localhost:3000
+4. Proxy runs on http://localhost:3001
 
-See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for detailed setup.
+See [QUICK_START.md](./QUICK_START.md) for detailed setup.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v18 or higher) - Required for native fetch support
 - npm or yarn
-- (Optional) Free API key from Alpha Vantage for personal quota
+- No API key needed - Yahoo Finance is free!
 
 ### Installation
 
@@ -52,24 +53,35 @@ See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for detailed setup.
 
 3. Start the development server:
    ```bash
-   npm start
+   npm run start:dev
    ```
-   The app works immediately with the demo API key!
+   This starts both the proxy server (port 3001) and React app (port 3000)
 
-4. (Optional) Add your own API key:
-   - Get free key: https://www.alphavantage.co/support/#api-key
-   - Update `src/utils/api.js` with your key
-   - See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for details
-
-5. Open [http://localhost:3000](http://localhost:3000) to view the app
+4. Open [http://localhost:3000](http://localhost:3000) to view the app
+   - Proxy health: [http://localhost:3001/health](http://localhost:3001/health)
 
 ## Deployment
 
-### Live Version
+### Deploy to Production
 
-**🌐 Live Site**: https://rvale92.github.io/Stock_Dashboard
+**🌐 Live Site**: https://rvale92.github.io/Stock_Dashboard (requires proxy deployment)
 
-The app is live and ready to use. All features are fully functional including:
+#### Step 1: Deploy Proxy Server
+
+Deploy `server.js` to one of these platforms:
+- **Vercel**: See [vercel.json](./vercel.json) and [PROXY_DEPLOYMENT.md](./PROXY_DEPLOYMENT.md)
+- **Render**: See [render.yaml](./render.yaml) and [PROXY_DEPLOYMENT.md](./PROXY_DEPLOYMENT.md)
+- **Railway**: Follow [PROXY_DEPLOYMENT.md](./PROXY_DEPLOYMENT.md)
+
+Set `REACT_APP_PROXY_URL` environment variable to your proxy URL.
+
+#### Step 2: Deploy React App
+
+1. Build: `npm run build`
+2. Deploy to GitHub Pages: `npm run deploy`
+3. Or deploy to Vercel/Netlify for the React app
+
+**All features fully functional:**
 - Real-time stock quotes and updates
 - Price alerts with browser notifications
 - Dark mode with persistent preference
@@ -77,7 +89,7 @@ The app is live and ready to use. All features are fully functional including:
 - Interactive charts and technical indicators
 - Full keyboard and screen reader accessibility
 
-**Note**: The app uses **Alpha Vantage's demo API key** (`demo`) for public deployment. This provides immediate functionality with a shared 25 requests/day limit. For better performance, get your own free key - see [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md).
+**Note**: The app uses **Yahoo Finance** via a backend proxy server. No API key is required. For production deployment, you'll need to deploy the proxy server (server.js) to Vercel, Render, or Railway. See [PROXY_DEPLOYMENT.md](./PROXY_DEPLOYMENT.md) for deployment instructions.
 
 ### Deploying to GitHub Pages
 
@@ -190,13 +202,18 @@ stock-analysis-dashboard/
 
 ## API Integration
 
-The app integrates with multiple stock data APIs:
+The app uses **Yahoo Finance** via `yahoo-finance2` package:
 
-- **Alpha Vantage**: Primary provider for real-time quotes and historical data
-- **Finnhub**: Fallback provider for quotes and news feed
-- **Automatic Fallback**: If one API fails, the app automatically tries the other
+- **Yahoo Finance**: Primary provider for real-time quotes and historical data
+- **No API key required**: Completely free, no registration needed
+- **Proxy server**: Backend proxy (server.js) handles all API calls with:
+  - Caching (60-second TTL)
+  - Rate limiting (20 requests/minute)
+  - Data sanitization
+  - CORS handling
+- **Historical data**: Daily, weekly, monthly intervals via chart API
 
-See `API_SETUP.md` for detailed setup instructions and `docs/api-reference.md` for API provider documentation.
+See [YAHOO_FINANCE_MIGRATION.md](./YAHOO_FINANCE_MIGRATION.md) for migration details and [PROXY_DEPLOYMENT.md](./PROXY_DEPLOYMENT.md) for deployment.
 
 ### Current Features
 - ✅ **Real-time Updates**: WebSocket integration for instant price updates (with polling fallback)
