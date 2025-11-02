@@ -73,7 +73,7 @@ function Watchlist({ onStockSelect }) {
     }
   }, [stocks]);
 
-  // WebSocket not available in Alpha Vantage demo mode - use polling only
+  // WebSocket not currently implemented - use polling only
   useWebSocket(stocks);
 
   // Polling: Refresh stock quotes every POLL_MS (65 seconds to respect API limits)

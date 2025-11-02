@@ -36,7 +36,7 @@ function AnalyticsPanel({ symbol }) {
     }
   }, [symbol]);
 
-  // WebSocket not available in Alpha Vantage demo mode - use polling only
+  // WebSocket not currently implemented - use polling only
   useWebSocket(symbol ? [symbol] : []);
 
   // Polling: Refresh quote data every POLL_MS (65 seconds to respect API limits)
