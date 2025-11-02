@@ -21,6 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Block Alpha Vantage usage
+        run: |
+          set -e
+          ! grep -RInE "alphavantage|GLOBAL_QUOTE|TIME_SERIES" src || (echo "Alpha Vantage reference found. Failing build." && exit 1)
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -46,13 +51,11 @@ jobs:
         run: npm run build
         env:
           REACT_APP_PROXY_URL: ${{ secrets.REACT_APP_PROXY_URL }}
+          REACT_APP_BUILD_SHA: ${{ github.sha }}
+          REACT_APP_BUILD_TIME: ${{ github.run_started_at }}
 
-      - name: SPA fallback (404.html)
-        run: |
-          if [ -f build/index.html ]; then
-            cp build/index.html build/404.html
-            echo "✅ Created 404.html for SPA routing"
-          fi
+      - name: SPA fallback (copy index -> 404)
+        run: cp build/index.html build/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

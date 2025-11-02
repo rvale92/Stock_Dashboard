@@ -9,6 +9,7 @@ import TechnicalIndicators from './components/TechnicalIndicators';
 import PortfolioManager from './components/PortfolioManager';
 import PortfolioView from './components/PortfolioView';
 import AlertsDashboard from './components/AlertsDashboard';
+import ConnectionStatus from './components/ConnectionStatus';
 import { useDarkMode } from './contexts/DarkModeContext';
 import {
   AppBar,
@@ -150,6 +151,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
+        <ConnectionStatus />
         <AppBar 
           position="sticky" 
           elevation={2}

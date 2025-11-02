@@ -1,46 +1,30 @@
 // Stock Analysis Dashboard - API Utilities
 // Using proxy server to avoid CSP issues
 
-// Determine API base URL based on environment
-// In development: proxy runs on port 3001
-// In production: proxy runs on same domain or Vercel/Render
-const getApiBaseUrl = () => {
-  const hostname = window.location.hostname;
-  const isGitHubPages = hostname.includes('github.io');
-  
-  // Check for development mode - must be localhost/127.0.0.1
-  const isDevelopment = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
-  
-  if (isDevelopment) {
-    // Development: proxy runs on port 3001
-    const devUrl = 'http://localhost:3001';
-    console.log(`[API] Development mode - using proxy: ${devUrl}`);
-    return devUrl;
-  }
-  
-  // Production (including GitHub Pages): MUST use REACT_APP_PROXY_URL
-  // React embeds env vars at build time, so this must be set during build
-  const proxyUrl = process.env.REACT_APP_PROXY_URL;
-  
-  if (!proxyUrl) {
-    console.error(`[API] ❌ ERROR: REACT_APP_PROXY_URL not set in production!`);
-    console.error(`[API] Hostname: ${hostname}`);
-    console.error(`[API] GitHub Pages requires REACT_APP_PROXY_URL to be set during build.`);
-    console.error(`[API] Please set REACT_APP_PROXY_URL secret in GitHub Actions.`);
-    console.error(`[API] Falling back to window.location.origin (will likely fail): ${window.location.origin}`);
-    // Return origin as last resort, but this will likely fail
-    return window.location.origin;
-  }
-  
-  console.log(`[API] Production mode (${isGitHubPages ? 'GitHub Pages' : 'production'}) - using proxy: ${proxyUrl}`);
-  return proxyUrl;
-};
+const DEV_BASE = 'http://localhost:3001';
+const PROD_PROXY = process.env.REACT_APP_PROXY_URL; // injected at build
+const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
 
-const API_BASE_URL = getApiBaseUrl();
-console.log(`[API] ⚙️ BASE_URL configured at runtime: ${API_BASE_URL}`);
-console.log(`[API] Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`[API] Hostname: ${window.location.hostname}`);
-console.log(`[API] REACT_APP_PROXY_URL: ${process.env.REACT_APP_PROXY_URL || 'NOT SET (will cause errors in production!)'}`);
+export const BASE_URL = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '')
+  ? DEV_BASE
+  : PROD_PROXY;
+
+// Runtime guard: crash loudly if prod has no proxy (prevents silent old code)
+if (hostname.includes('github.io')) {
+  if (!PROD_PROXY || !/^https?:\/\//.test(PROD_PROXY)) {
+    throw new Error('[API] REACT_APP_PROXY_URL is missing or invalid in production build.');
+  }
+}
+
+// Build stamp (provided by CI; add fallbacks)
+// eslint-disable-next-line no-undef
+const BUILD_SHA = process.env.REACT_APP_BUILD_SHA || 'dev';
+// eslint-disable-next-line no-undef
+const BUILD_TIME = process.env.REACT_APP_BUILD_TIME || new Date().toISOString();
+console.log('[API] ⚙️ BASE_URL:', BASE_URL, '| Host:', hostname, '| SHA:', BUILD_SHA, '| Time:', BUILD_TIME);
+
+// Keep API_BASE_URL for backward compatibility (deprecated, use BASE_URL)
+const API_BASE_URL = BASE_URL;
 
 // Simple cache to reduce API calls
 const cache = {};
@@ -67,7 +51,7 @@ export async function fetchStockQuote(symbol) {
     return cached;
   }
 
-  const url = `${API_BASE_URL}/api/yf/quote?symbol=${encodeURIComponent(symbol)}`;
+  const url = `${BASE_URL}/api/yf/quote?symbol=${encodeURIComponent(symbol)}`;
   console.log(`[API] Fetching quote via proxy: ${url}`);
 
   let response;
@@ -81,7 +65,7 @@ export async function fetchStockQuote(symbol) {
     });
   } catch (fetchError) {
     console.error(`[API] Fetch error for ${symbol}:`, fetchError);
-    throw new Error(`Network error: Unable to reach proxy server. Make sure the proxy is running on ${API_BASE_URL}`);
+    throw new Error(`Network error: Unable to reach proxy server. Make sure the proxy is running on ${BASE_URL}`);
   }
   
   if (!response.ok) {
@@ -114,7 +98,7 @@ export async function fetchHistoricalData(symbol, interval = 'daily') {
   };
   
   const { range, interval: yfInterval } = intervalMap[interval] || intervalMap.daily;
-  const url = `${API_BASE_URL}/api/yf/history?symbol=${encodeURIComponent(symbol)}&range=${range}&interval=${yfInterval}`;
+  const url = `${BASE_URL}/api/yf/history?symbol=${encodeURIComponent(symbol)}&range=${range}&interval=${yfInterval}`;
   console.log(`[API] Fetching history via proxy: ${url}`);
 
   let response;
@@ -128,7 +112,7 @@ export async function fetchHistoricalData(symbol, interval = 'daily') {
     });
   } catch (fetchError) {
     console.error(`[API] Fetch error for ${symbol} (${interval}):`, fetchError);
-    throw new Error(`Network error: Unable to reach proxy server. Make sure the proxy is running on ${API_BASE_URL}`);
+    throw new Error(`Network error: Unable to reach proxy server. Make sure the proxy is running on ${BASE_URL}`);
   }
   
   if (!response.ok) {
