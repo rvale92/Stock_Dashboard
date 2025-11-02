@@ -1,7 +1,7 @@
 // Stock Analysis Dashboard - API Utilities
 // Using Alpha Vantage API ONLY
 
-const ALPHA_VANTAGE_KEY = 'demo';
+const ALPHA_VANTAGE_KEY = 'LUFFBMJFOTCKM3AZ';
 const BASE_URL = 'https://www.alphavantage.co/query';
 
 // Simple cache to reduce API calls
