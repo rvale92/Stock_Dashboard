@@ -102,6 +102,9 @@ function Watchlist({ onStockSelect }) {
               checkAlerts(stock, data.price);
             }
             setStockData(prev => ({ ...prev, [stock]: data }));
+          } catch (err) {
+            console.error(`[Watchlist] Error fetching ${stock}:`, err);
+            setStockData(prev => ({ ...prev, [stock]: { symbol: stock, error: err.message || 'API connection failed — check proxy URL configuration.' } }));
             setError(prev => {
               const newError = { ...prev };
               delete newError[stock];

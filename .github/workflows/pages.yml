@@ -30,13 +30,29 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Inject .env.production
+      - name: Create .env.production
         run: |
-          echo "REACT_APP_PROXY_URL=${{ secrets.REACT_APP_PROXY_URL }}" > .env.production
-          echo "Created .env.production with REACT_APP_PROXY_URL"
+          if [ -z "${{ secrets.REACT_APP_PROXY_URL }}" ]; then
+            echo "⚠️  WARNING: REACT_APP_PROXY_URL secret is not set!"
+            echo "The build will continue but the app won't work on GitHub Pages."
+            echo "Please set REACT_APP_PROXY_URL in repository secrets."
+          else
+            echo "REACT_APP_PROXY_URL=${{ secrets.REACT_APP_PROXY_URL }}" > .env.production
+            echo "✅ Created .env.production with REACT_APP_PROXY_URL"
+            echo "Proxy URL will be embedded in build"
+          fi
 
       - name: Build React app
         run: npm run build
+        env:
+          REACT_APP_PROXY_URL: ${{ secrets.REACT_APP_PROXY_URL }}
+
+      - name: SPA fallback (404.html)
+        run: |
+          if [ -f build/index.html ]; then
+            cp build/index.html build/404.html
+            echo "✅ Created 404.html for SPA routing"
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

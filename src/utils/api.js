@@ -5,13 +5,11 @@
 // In development: proxy runs on port 3001
 // In production: proxy runs on same domain or Vercel/Render
 const getApiBaseUrl = () => {
-  // Check if we're on GitHub Pages (*.github.io)
-  const isGitHubPages = window.location.hostname.includes('github.io');
+  const hostname = window.location.hostname;
+  const isGitHubPages = hostname.includes('github.io');
   
-  // Explicitly check for development mode
-  const isDevelopment = process.env.NODE_ENV !== 'production' || 
-                        window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
+  // Check for development mode - must be localhost/127.0.0.1
+  const isDevelopment = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
   
   if (isDevelopment) {
     // Development: proxy runs on port 3001
@@ -20,15 +18,17 @@ const getApiBaseUrl = () => {
     return devUrl;
   }
   
-  // Production: force proxy URL from environment variable
-  // GitHub Pages and production MUST use REACT_APP_PROXY_URL
+  // Production (including GitHub Pages): MUST use REACT_APP_PROXY_URL
+  // React embeds env vars at build time, so this must be set during build
   const proxyUrl = process.env.REACT_APP_PROXY_URL;
   
   if (!proxyUrl) {
-    console.warn(`[API] WARNING: REACT_APP_PROXY_URL not set in production!`);
-    console.warn(`[API] GitHub Pages (${window.location.hostname}) requires REACT_APP_PROXY_URL to be set.`);
-    console.warn(`[API] Falling back to window.location.origin: ${window.location.origin}`);
-    console.warn(`[API] This may cause CORS errors - ensure proxy is deployed and REACT_APP_PROXY_URL is configured.`);
+    console.error(`[API] ❌ ERROR: REACT_APP_PROXY_URL not set in production!`);
+    console.error(`[API] Hostname: ${hostname}`);
+    console.error(`[API] GitHub Pages requires REACT_APP_PROXY_URL to be set during build.`);
+    console.error(`[API] Please set REACT_APP_PROXY_URL secret in GitHub Actions.`);
+    console.error(`[API] Falling back to window.location.origin (will likely fail): ${window.location.origin}`);
+    // Return origin as last resort, but this will likely fail
     return window.location.origin;
   }
   
@@ -40,7 +40,7 @@ const API_BASE_URL = getApiBaseUrl();
 console.log(`[API] ⚙️ BASE_URL configured at runtime: ${API_BASE_URL}`);
 console.log(`[API] Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`[API] Hostname: ${window.location.hostname}`);
-console.log(`[API] REACT_APP_PROXY_URL: ${process.env.REACT_APP_PROXY_URL || 'NOT SET'}`);
+console.log(`[API] REACT_APP_PROXY_URL: ${process.env.REACT_APP_PROXY_URL || 'NOT SET (will cause errors in production!)'}`);
 
 // Simple cache to reduce API calls
 const cache = {};
