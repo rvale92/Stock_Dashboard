@@ -5,6 +5,9 @@
 // In development: proxy runs on port 3001
 // In production: proxy runs on same domain or Vercel/Render
 const getApiBaseUrl = () => {
+  // Check if we're on GitHub Pages (*.github.io)
+  const isGitHubPages = window.location.hostname.includes('github.io');
+  
   // Explicitly check for development mode
   const isDevelopment = process.env.NODE_ENV !== 'production' || 
                         window.location.hostname === 'localhost' || 
@@ -17,14 +20,27 @@ const getApiBaseUrl = () => {
     return devUrl;
   }
   
-  // Production: use environment variable or same origin
-  const proxyUrl = process.env.REACT_APP_PROXY_URL || window.location.origin;
-  console.log(`[API] Production mode - using proxy: ${proxyUrl}`);
+  // Production: force proxy URL from environment variable
+  // GitHub Pages and production MUST use REACT_APP_PROXY_URL
+  const proxyUrl = process.env.REACT_APP_PROXY_URL;
+  
+  if (!proxyUrl) {
+    console.warn(`[API] WARNING: REACT_APP_PROXY_URL not set in production!`);
+    console.warn(`[API] GitHub Pages (${window.location.hostname}) requires REACT_APP_PROXY_URL to be set.`);
+    console.warn(`[API] Falling back to window.location.origin: ${window.location.origin}`);
+    console.warn(`[API] This may cause CORS errors - ensure proxy is deployed and REACT_APP_PROXY_URL is configured.`);
+    return window.location.origin;
+  }
+  
+  console.log(`[API] Production mode (${isGitHubPages ? 'GitHub Pages' : 'production'}) - using proxy: ${proxyUrl}`);
   return proxyUrl;
 };
 
 const API_BASE_URL = getApiBaseUrl();
-console.log(`[API] Base URL configured: ${API_BASE_URL}`);
+console.log(`[API] ⚙️ BASE_URL configured at runtime: ${API_BASE_URL}`);
+console.log(`[API] Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`[API] Hostname: ${window.location.hostname}`);
+console.log(`[API] REACT_APP_PROXY_URL: ${process.env.REACT_APP_PROXY_URL || 'NOT SET'}`);
 
 // Simple cache to reduce API calls
 const cache = {};
