@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: stock-dashboard-proxy
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+    plan: free
+

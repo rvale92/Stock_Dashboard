@@ -4,18 +4,31 @@
   "description": "A React-based stock analysis dashboard and watchlist application",
   "homepage": "https://rvale92.github.io/Stock_Dashboard",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "recharts": "^3.3.0"
+    "recharts": "^3.3.0",
+    "yahoo-finance2": "^2.13.3"
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:server": "node server.js",
+    "kill:port": "node scripts/kill-port.js",
+    "free:3000": "node scripts/kill-port.js 3000",
+    "free:3001": "node scripts/kill-port.js 3001",
+    "start:dev": "npm run free:3000 && npm run free:3001 && concurrently --names \"PROXY,REACT\" --prefix-colors \"cyan,green\" \"npm run start:server\" \"PORT=3000 npm start\"",
+    "test:setup": "node scripts/test-setup.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
@@ -40,6 +53,8 @@
     ]
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "gh-pages": "^6.3.0"
-  }
+  },
+  "proxy": "http://localhost:3001"
 }

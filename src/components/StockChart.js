@@ -16,6 +16,7 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { fetchHistoricalData } from '../utils/api';
+import { getSeriesLastN, sanitizeSeries } from '../utils/series';
 
 function StockChart({ symbol }) {
   const [chartData, setChartData] = useState(null);
@@ -30,6 +31,16 @@ function StockChart({ symbol }) {
 
     try {
       const data = await fetchHistoricalData(stockSymbol, timeInterval);
+      
+      // Log first item to verify shape
+      console.log('[History]', stockSymbol, data?.data?.[0]);
+      
+      if (!data || !data.data || data.data.length === 0) {
+        setChartData(null);
+        setError('No chart data available');
+        return;
+      }
+      
       setChartData(data);
     } catch (err) {
       console.error('Error fetching chart data:', err);
@@ -56,13 +67,24 @@ function StockChart({ symbol }) {
       return [];
     }
 
-    const recentData = chartData.data.slice(-30).map(point => ({
-      ...point,
-      dateShort: new Date(point.date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })
-    }));
+    // Sanitize and get last 30 items
+    const sanitized = sanitizeSeries(chartData.data);
+    const recentData = getSeriesLastN(sanitized, 30).map(point => {
+      if (!point || !point.date) return null;
+      
+      return {
+        date: point.date,
+        open: Number.isFinite(point.open) ? Number(point.open) : null,
+        high: Number.isFinite(point.high) ? Number(point.high) : null,
+        low: Number.isFinite(point.low) ? Number(point.low) : null,
+        close: Number.isFinite(point.close) ? Number(point.close) : null,
+        volume: Number.isFinite(point.volume) ? Number(point.volume) : 0,
+        dateShort: new Date(point.date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        })
+      };
+    }).filter(p => p !== null && p.close !== null);
 
     return recentData;
   };
@@ -99,7 +121,10 @@ function StockChart({ symbol }) {
             />
             <YAxis domain={['auto', 'auto']} />
             <Tooltip
-              formatter={(value) => [`$${value.toFixed(2)}`, 'Close']}
+              formatter={(value) => {
+                if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+                return [`$${Number(value).toFixed(2)}`, 'Close'];
+              }}
               labelFormatter={(label) => `Date: ${label}`}
             />
             <Legend />
@@ -147,7 +172,10 @@ function StockChart({ symbol }) {
             />
             <YAxis domain={['auto', 'auto']} />
             <Tooltip
-              formatter={(value) => [`$${value.toFixed(2)}`, 'Close']}
+              formatter={(value) => {
+                if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+                return [`$${Number(value).toFixed(2)}`, 'Close'];
+              }}
               labelFormatter={(label) => `Date: ${label}`}
             />
             <Legend />

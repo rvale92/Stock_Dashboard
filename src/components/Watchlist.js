@@ -33,6 +33,7 @@ import { fetchStockQuote } from '../utils/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { checkAlerts, getAlertsForSymbol } from '../utils/alerts';
 import AlertManager from './AlertManager';
+import { POLL_MS, STAGGER_DELAY_MS } from '../constants';
 
 // Common stock symbols for autocomplete
 const COMMON_STOCKS = [
@@ -50,13 +51,18 @@ function Watchlist({ onStockSelect }) {
   const [error, setError] = useState({});
   const [selectedSymbolForAlert, setSelectedSymbolForAlert] = useState(null);
 
-  // Load watchlist from localStorage on mount
+  // Load watchlist from localStorage on mount with staggered initial loads
   useEffect(() => {
     const savedStocks = localStorage.getItem('watchlist');
     if (savedStocks) {
       const parsed = JSON.parse(savedStocks);
       setStocks(parsed);
-      parsed.forEach(stock => fetchStockData(stock));
+      // Stagger initial loads to avoid burst requests
+      parsed.forEach((stock, index) => {
+        setTimeout(() => {
+          fetchStockData(stock);
+        }, index * STAGGER_DELAY_MS);
+      });
     }
   }, []);
 
@@ -70,28 +76,68 @@ function Watchlist({ onStockSelect }) {
   // WebSocket not available in Alpha Vantage demo mode - use polling only
   useWebSocket(stocks);
 
-  // Polling: Refresh stock quotes every 60 seconds
+  // Polling: Refresh stock quotes every POLL_MS (65 seconds to respect API limits)
   useEffect(() => {
     if (stocks.length === 0) return;
 
+    // Track active requests to avoid duplicate fetches
+    const activeRequests = new Set();
+
     const updateAllStocks = async () => {
-      for (const stock of stocks) {
-        try {
-          const data = await fetchStockQuote(stock);
-          if (data && data.price) {
-            checkAlerts(stock, data.price);
-          }
-          setStockData(prev => ({ ...prev, [stock]: data }));
-        } catch (err) {
-          console.error(`Error updating ${stock}:`, err.message);
-          setError(prev => ({ ...prev, [stock]: err.message }));
+      // Stagger updates to avoid burst requests
+      for (let i = 0; i < stocks.length; i++) {
+        const stock = stocks[i];
+        
+        // Skip if already fetching this symbol
+        if (activeRequests.has(stock)) {
+          console.log(`Skipping ${stock} - already fetching`);
+          continue;
         }
+
+        setTimeout(async () => {
+          activeRequests.add(stock);
+          try {
+            const data = await fetchStockQuote(stock);
+            if (data && data.price) {
+              checkAlerts(stock, data.price);
+            }
+            setStockData(prev => ({ ...prev, [stock]: data }));
+            setError(prev => {
+              const newError = { ...prev };
+              delete newError[stock];
+              return newError;
+            });
+          } catch (err) {
+            console.error(`Error updating ${stock}:`, err.message);
+            const errorMsg = err.message || 'Unknown error';
+            const lowerMsg = errorMsg.toLowerCase();
+            
+            // Show helpful error messages
+            let displayMsg = 'No data available';
+            if (lowerMsg.includes('rate') || lowerMsg.includes('limit')) {
+              displayMsg = 'Rate limited — retrying…';
+            } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch')) {
+              displayMsg = 'Network error — retrying…';
+            } else if (lowerMsg.includes('invalid')) {
+              displayMsg = 'Invalid symbol';
+            } else {
+              displayMsg = errorMsg;
+            }
+            
+            setError(prev => ({ ...prev, [stock]: displayMsg }));
+          } finally {
+            activeRequests.delete(stock);
+          }
+        }, i * 500); // 500ms spacing between requests
       }
     };
 
     updateAllStocks();
-    const intervalId = setInterval(updateAllStocks, 60000);
-    return () => clearInterval(intervalId);
+    const intervalId = setInterval(updateAllStocks, POLL_MS);
+    return () => {
+      clearInterval(intervalId);
+      activeRequests.clear();
+    };
   }, [stocks]);
 
   const fetchStockData = async (stockSymbol) => {
@@ -112,7 +158,22 @@ function Watchlist({ onStockSelect }) {
       }
     } catch (err) {
       console.error(`Error fetching ${stockSymbol}:`, err.message);
-      setError(prev => ({ ...prev, [stockSymbol]: `Failed to fetch ${stockSymbol}: ${err.message}` }));
+      const errorMsg = err.message || 'Unknown error';
+      const lowerMsg = errorMsg.toLowerCase();
+      
+      // Show helpful error messages
+      let displayMsg = 'No data available';
+      if (lowerMsg.includes('rate') || lowerMsg.includes('limit')) {
+        displayMsg = 'Rate limited — retrying…';
+      } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch')) {
+        displayMsg = 'Network error — retrying…';
+      } else if (lowerMsg.includes('invalid')) {
+        displayMsg = 'Invalid symbol';
+      } else {
+        displayMsg = `Failed to fetch: ${errorMsg}`;
+      }
+      
+      setError(prev => ({ ...prev, [stockSymbol]: displayMsg }));
     } finally {
       setLoading(prev => ({ ...prev, [stockSymbol]: false }));
     }

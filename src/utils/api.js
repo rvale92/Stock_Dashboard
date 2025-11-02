@@ -1,8 +1,30 @@
 // Stock Analysis Dashboard - API Utilities
-// Using Alpha Vantage API ONLY
+// Using proxy server to avoid CSP issues
 
-const ALPHA_VANTAGE_KEY = 'LUFFBMJFOTCKM3AZ';
-const BASE_URL = 'https://www.alphavantage.co/query';
+// Determine API base URL based on environment
+// In development: proxy runs on port 3001
+// In production: proxy runs on same domain or Vercel/Render
+const getApiBaseUrl = () => {
+  // Explicitly check for development mode
+  const isDevelopment = process.env.NODE_ENV !== 'production' || 
+                        window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1';
+  
+  if (isDevelopment) {
+    // Development: proxy runs on port 3001
+    const devUrl = 'http://localhost:3001';
+    console.log(`[API] Development mode - using proxy: ${devUrl}`);
+    return devUrl;
+  }
+  
+  // Production: use environment variable or same origin
+  const proxyUrl = process.env.REACT_APP_PROXY_URL || window.location.origin;
+  console.log(`[API] Production mode - using proxy: ${proxyUrl}`);
+  return proxyUrl;
+};
+
+const API_BASE_URL = getApiBaseUrl();
+console.log(`[API] Base URL configured: ${API_BASE_URL}`);
 
 // Simple cache to reduce API calls
 const cache = {};
@@ -29,39 +51,37 @@ export async function fetchStockQuote(symbol) {
     return cached;
   }
 
-  const url = `${BASE_URL}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
-  console.log(`Fetching quote from Alpha Vantage: ${symbol}`);
+  const url = `${API_BASE_URL}/api/yf/quote?symbol=${encodeURIComponent(symbol)}`;
+  console.log(`[API] Fetching quote via proxy: ${url}`);
 
-  const response = await fetch(url);
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      mode: 'cors',
+    });
+  } catch (fetchError) {
+    console.error(`[API] Fetch error for ${symbol}:`, fetchError);
+    throw new Error(`Network error: Unable to reach proxy server. Make sure the proxy is running on ${API_BASE_URL}`);
+  }
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+  }
+
   const data = await response.json();
 
-  if (data['Error Message']) {
-    throw new Error(`Invalid symbol: ${symbol}`);
-  }
-
-  if (data['Note']) {
-    throw new Error('Rate limit reached. Please wait and try again.');
-  }
-
-  const quote = data['Global Quote'];
-  if (!quote || Object.keys(quote).length === 0) {
+  // Server already normalizes the data, so just return it
+  if (!data || !data.price) {
     throw new Error(`No data available for ${symbol}`);
   }
 
-  const result = {
-    symbol: symbol,
-    price: parseFloat(quote['05. price']) || 0,
-    change: parseFloat(quote['09. change']) || 0,
-    changePercent: parseFloat(quote['10. change percent']?.replace('%', '')) || 0,
-    high: parseFloat(quote['03. high']) || 0,
-    low: parseFloat(quote['04. low']) || 0,
-    open: parseFloat(quote['02. open']) || 0,
-    previousClose: parseFloat(quote['08. previous close']) || 0,
-    volume: parseInt(quote['06. volume']) || 0
-  };
-
-  setCache(cacheKey, result);
-  return result;
+  setCache(cacheKey, data);
+  return data;
 }
 
 // Fetch historical data
@@ -70,39 +90,47 @@ export async function fetchHistoricalData(symbol, interval = 'daily') {
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
-  const functions = {
-    daily: 'TIME_SERIES_DAILY',
-    weekly: 'TIME_SERIES_WEEKLY',
-    monthly: 'TIME_SERIES_MONTHLY'
+  // Map interval to Yahoo Finance format
+  const intervalMap = {
+    daily: { range: '3mo', interval: '1d' },
+    weekly: { range: '1y', interval: '1wk' },
+    monthly: { range: '2y', interval: '1mo' }
   };
+  
+  const { range, interval: yfInterval } = intervalMap[interval] || intervalMap.daily;
+  const url = `${API_BASE_URL}/api/yf/history?symbol=${encodeURIComponent(symbol)}&range=${range}&interval=${yfInterval}`;
+  console.log(`[API] Fetching history via proxy: ${url}`);
 
-  const url = `${BASE_URL}?function=${functions[interval]}&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
-  const response = await fetch(url);
-  const data = await response.json();
-
-  if (data['Error Message'] || data['Note']) {
-    throw new Error('Unable to fetch historical data');
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      mode: 'cors',
+    });
+  } catch (fetchError) {
+    console.error(`[API] Fetch error for ${symbol} (${interval}):`, fetchError);
+    throw new Error(`Network error: Unable to reach proxy server. Make sure the proxy is running on ${API_BASE_URL}`);
+  }
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
   }
 
-  const timeSeriesKey = Object.keys(data).find(k => k.includes('Time Series'));
-  if (!timeSeriesKey) {
+  const data = await response.json();
+
+  if (!data || !data.data || data.data.length === 0) {
     throw new Error('No historical data available');
   }
 
+  // Server already normalizes the data format
   const result = {
-    symbol: symbol,
+    symbol: data.symbol,
     interval: interval,
-    data: Object.entries(data[timeSeriesKey])
-      .slice(0, 100)
-      .map(([date, values]) => ({
-        date,
-        open: parseFloat(values['1. open']),
-        high: parseFloat(values['2. high']),
-        low: parseFloat(values['3. low']),
-        close: parseFloat(values['4. close']),
-        volume: parseInt(values['5. volume'])
-      }))
-      .reverse()
+    data: data.data
   };
 
   setCache(cacheKey, result);
@@ -124,10 +152,10 @@ export async function fetchCompanyProfile(symbol) {
 export async function fetchNews(symbol) {
   return [{
     title: `${symbol} Market Information`,
-    summary: 'Alpha Vantage demo mode does not include news feeds. Get your own free API key at https://www.alphavantage.co/support/#api-key for full features.',
-    source: 'Demo Mode',
+    summary: 'News feed integration coming soon with Yahoo Finance.',
+    source: 'Yahoo Finance',
     date: new Date().toISOString(),
-    url: 'https://www.alphavantage.co/support/#api-key'
+    url: 'https://finance.yahoo.com'
   }];
 }
 

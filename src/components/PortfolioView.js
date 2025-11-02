@@ -35,6 +35,7 @@ import { fetchMultipleQuotes } from '../utils/api';
 import { calculatePortfolioPerformance } from '../utils/portfolios';
 import { checkAlerts, getAlertsForSymbol } from '../utils/alerts';
 import AlertManager from './AlertManager';
+import { POLL_MS } from '../constants';
 
 function PortfolioView({ portfolioId, onStockSelect, onBack }) {
   const [portfolio, setPortfolio] = useState(null);
@@ -61,7 +62,7 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
       loadPortfolioData();
       const interval = setInterval(() => {
         loadPortfolioData();
-      }, 30000);
+      }, POLL_MS);
       return () => clearInterval(interval);
     } else {
       setPortfolioData([]);
@@ -103,7 +104,20 @@ function PortfolioView({ portfolioId, onStockSelect, onBack }) {
       setPerformance(calculatePortfolioPerformance(validQuotes));
     } catch (err) {
       console.error('Error loading portfolio data:', err);
-      setError('Failed to load portfolio data');
+      const errorMsg = err.message || 'Failed to load portfolio data';
+      const lowerMsg = errorMsg.toLowerCase();
+      
+      // Show helpful error messages
+      let displayMsg = 'No data available';
+      if (lowerMsg.includes('rate') || lowerMsg.includes('limit')) {
+        displayMsg = 'Rate limited — retrying…';
+      } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch')) {
+        displayMsg = 'Network error — retrying…';
+      } else {
+        displayMsg = errorMsg;
+      }
+      
+      setError(displayMsg);
     } finally {
       setLoading(false);
     }

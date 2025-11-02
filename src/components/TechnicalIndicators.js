@@ -20,6 +20,7 @@ import {
 import { LineChart, Line, ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { fetchHistoricalData } from '../utils/api';
 import { calculateSMA, calculateEMA, calculateRSI, calculateMACD, calculateBollingerBands } from '../utils/indicators';
+import { getSeriesLastN, sanitizeSeries } from '../utils/series';
 
 function TechnicalIndicators({ symbol }) {
   const [historicalData, setHistoricalData] = useState([]);
@@ -39,7 +40,20 @@ function TechnicalIndicators({ symbol }) {
 
   useEffect(() => {
     if (historicalData.length > 0) {
-      calculateAllIndicators(historicalData);
+      try {
+        const safe = getSeriesLastN(historicalData, 200);
+        if (safe.length < 20) {
+          console.warn('[Indicators] Insufficient data points:', safe.length);
+          setIndicatorData({});
+          return;
+        }
+        calculateAllIndicators(safe);
+      } catch (e) {
+        console.error('[Indicators] Error calculating indicators:', e);
+        setIndicatorData({});
+      }
+    } else {
+      setIndicatorData({});
     }
   }, [historicalData]);
 
@@ -48,7 +62,19 @@ function TechnicalIndicators({ symbol }) {
     setError(null);
     try {
       const data = await fetchHistoricalData(stockSymbol, 'daily');
-      const sortedData = data.data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      // Log first item to verify shape
+      console.log('[History]', stockSymbol, data?.data?.[0]);
+      
+      if (!data || !data.data || data.data.length === 0) {
+        setHistoricalData([]);
+        setError('No chart data available');
+        return;
+      }
+      
+      // Sanitize and sort data
+      const sanitized = sanitizeSeries(data.data);
+      const sortedData = sanitized.sort((a, b) => new Date(a.date) - new Date(b.date));
       setHistoricalData(sortedData);
     } catch (err) {
       console.error('Error fetching historical data for indicators:', err);
@@ -60,8 +86,23 @@ function TechnicalIndicators({ symbol }) {
   };
 
   const calculateAllIndicators = (data) => {
-    const closes = data.map(d => d.close);
-    const dates = data.map(d => d.date);
+    if (!Array.isArray(data) || data.length === 0) {
+      setIndicatorData({});
+      return;
+    }
+    
+    // Filter out invalid data points first
+    const validData = data.filter(d => d && d.date && Number.isFinite(d.close));
+    
+    if (validData.length < 50) {
+      console.warn('[Indicators] Insufficient valid data points:', validData.length);
+      setIndicatorData({});
+      return;
+    }
+    
+    // Extract closes and dates from valid data only
+    const closes = validData.map(d => d.close);
+    const dates = validData.map(d => d.date);
 
     const sma20 = calculateSMA(closes, 20);
     const sma50 = calculateSMA(closes, 50);
@@ -71,21 +112,40 @@ function TechnicalIndicators({ symbol }) {
     const macd = calculateMACD(closes, 12, 26, 9);
     const bollingerBands = calculateBollingerBands(closes, 20);
 
-    const combinedData = dates.map((date, index) => ({
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      close: closes[index],
-      sma20: sma20[index - (20 - 1)] || null,
-      sma50: sma50[index - (50 - 1)] || null,
-      ema20: ema20[index - (20 - 1)] || null,
-      ema50: ema50[index - (50 - 1)] || null,
-      rsi: rsi[index - (14 - 1)] || null,
-      macd: macd?.macdLine[index - (26 - 1)] || null,
-      signal: macd?.signalLine[index - (26 - 1)] || null,
-      histogram: macd?.histogram[index - (26 - 1)] || null,
-      upperBand: bollingerBands?.upper[index - (20 - 1)] || null,
-      middleBand: bollingerBands?.middle[index - (20 - 1)] || null,
-      lowerBand: bollingerBands?.lower[index - (20 - 1)] || null,
-    }));
+    // Safely align indicator arrays with dates using positive indices
+    const combinedData = dates.map((date, index) => {
+      // SMA20 starts at index 19 (after 20 periods)
+      const sma20Idx = index >= 19 ? index - 19 : -1;
+      // SMA50 starts at index 49
+      const sma50Idx = index >= 49 ? index - 49 : -1;
+      // EMA20 starts at index 19
+      const ema20Idx = index >= 19 ? index - 19 : -1;
+      // EMA50 starts at index 49
+      const ema50Idx = index >= 49 ? index - 49 : -1;
+      // RSI starts at index 14
+      const rsiIdx = index >= 14 ? index - 14 : -1;
+      // MACD starts later (around index 25+)
+      const macdStartIdx = Math.max(25, 0);
+      const macdIdx = index >= macdStartIdx ? index - macdStartIdx : -1;
+      // Bollinger starts at index 19
+      const bbIdx = index >= 19 ? index - 19 : -1;
+      
+      return {
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        close: Number.isFinite(closes[index]) ? closes[index] : null,
+        sma20: sma20Idx >= 0 && sma20Idx < sma20.length ? sma20[sma20Idx] : null,
+        sma50: sma50Idx >= 0 && sma50Idx < sma50.length ? sma50[sma50Idx] : null,
+        ema20: ema20Idx >= 0 && ema20Idx < ema20.length ? ema20[ema20Idx] : null,
+        ema50: ema50Idx >= 0 && ema50Idx < ema50.length ? ema50[ema50Idx] : null,
+        rsi: rsiIdx >= 0 && rsiIdx < rsi.length ? rsi[rsiIdx] : null,
+        macd: macd?.macdLine && macdIdx >= 0 && macdIdx < macd.macdLine.length ? macd.macdLine[macdIdx] : null,
+        signal: macd?.signalLine && macdIdx >= 0 && macdIdx < macd.signalLine.length ? macd.signalLine[macdIdx] : null,
+        histogram: macd?.histogram && macdIdx >= 0 && macdIdx < macd.histogram.length ? macd.histogram[macdIdx] : null,
+        upperBand: bollingerBands?.upper && bbIdx >= 0 && bbIdx < bollingerBands.upper.length ? bollingerBands.upper[bbIdx] : null,
+        middleBand: bollingerBands?.middle && bbIdx >= 0 && bbIdx < bollingerBands.middle.length ? bollingerBands.middle[bbIdx] : null,
+        lowerBand: bollingerBands?.lower && bbIdx >= 0 && bbIdx < bollingerBands.lower.length ? bollingerBands.lower[bbIdx] : null,
+      };
+    });
 
     setIndicatorData({
       sma: combinedData.filter(d => d.sma20 !== null),
@@ -104,7 +164,10 @@ function TechnicalIndicators({ symbol }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
           <YAxis domain={['auto', 'auto']} />
-          <Tooltip formatter={(value) => `$${value?.toFixed(2) || value}`} />
+          <Tooltip formatter={(value) => {
+            if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+            return `$${Number(value).toFixed(2)}`;
+          }} />
           <Legend />
           <Line type="monotone" dataKey="close" stroke="#8884d8" strokeWidth={1} dot={false} name="Close Price" />
           <Line type="monotone" dataKey="sma20" stroke="#82ca9d" strokeWidth={2} dot={false} name="SMA (20)" />
@@ -122,7 +185,10 @@ function TechnicalIndicators({ symbol }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
           <YAxis domain={['auto', 'auto']} />
-          <Tooltip formatter={(value) => `$${value?.toFixed(2) || value}`} />
+          <Tooltip formatter={(value) => {
+            if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+            return `$${Number(value).toFixed(2)}`;
+          }} />
           <Legend />
           <Line type="monotone" dataKey="close" stroke="#8884d8" strokeWidth={1} dot={false} name="Close Price" />
           <Line type="monotone" dataKey="ema20" stroke="#82ca9d" strokeWidth={2} dot={false} name="EMA (20)" />
@@ -142,7 +208,10 @@ function TechnicalIndicators({ symbol }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
           <YAxis domain={[0, 100]} />
-          <Tooltip formatter={(value) => `${value?.toFixed(2) || value}`} />
+          <Tooltip formatter={(value) => {
+            if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+            return `${Number(value).toFixed(2)}`;
+          }} />
           <Legend />
           <Line type="monotone" dataKey="rsi" stroke="#9c27b0" strokeWidth={2} name="RSI (14)" />
           <Line type="monotone" dataKey="overbought" stroke="#dc3545" strokeWidth={1} strokeDasharray="3 3" name="Overbought (70)" />
@@ -162,7 +231,10 @@ function TechnicalIndicators({ symbol }) {
           <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
           <YAxis yAxisId="left" domain={['auto', 'auto']} />
           <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} />
-          <Tooltip formatter={(value) => `${value?.toFixed(2) || value}`} />
+          <Tooltip formatter={(value) => {
+            if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+            return `${Number(value).toFixed(2)}`;
+          }} />
           <Legend />
           <Bar yAxisId="right" dataKey="histogram" fill="#4CAF50" name="Histogram" />
           <Line yAxisId="left" type="monotone" dataKey="macd" stroke="#007bff" strokeWidth={2} dot={false} name="MACD Line" />
@@ -181,7 +253,10 @@ function TechnicalIndicators({ symbol }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
           <YAxis domain={['auto', 'auto']} />
-          <Tooltip formatter={(value) => `$${value?.toFixed(2) || value}`} />
+          <Tooltip formatter={(value) => {
+            if (value === null || value === undefined || !Number.isFinite(value)) return 'N/A';
+            return `$${Number(value).toFixed(2)}`;
+          }} />
           <Legend />
           <Line type="monotone" dataKey="close" stroke="#8884d8" strokeWidth={1} dot={false} name="Close Price" />
           <Line type="monotone" dataKey="upperBand" stroke="#dc3545" strokeWidth={2} dot={false} name="Upper Band" />

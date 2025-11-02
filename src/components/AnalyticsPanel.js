@@ -19,6 +19,7 @@ import {
 import { fetchStockQuote, fetchCompanyProfile } from '../utils/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { checkAlerts } from '../utils/alerts';
+import { POLL_MS } from '../constants';
 
 function AnalyticsPanel({ symbol }) {
   const [quote, setQuote] = useState(null);
@@ -38,7 +39,7 @@ function AnalyticsPanel({ symbol }) {
   // WebSocket not available in Alpha Vantage demo mode - use polling only
   useWebSocket(symbol ? [symbol] : []);
 
-  // Polling: Refresh quote data every 60 seconds
+  // Polling: Refresh quote data every POLL_MS (65 seconds to respect API limits)
   useEffect(() => {
     if (!symbol) return;
 
@@ -49,13 +50,30 @@ function AnalyticsPanel({ symbol }) {
           checkAlerts(symbol, quoteData.price);
         }
         setQuote(quoteData);
+        setError(null);
       } catch (err) {
         console.error(`Error updating quote for ${symbol}:`, err.message);
+        const errorMsg = err.message || 'Unknown error';
+        const lowerMsg = errorMsg.toLowerCase();
+        
+        // Show helpful error messages
+        let displayMsg = 'No data available';
+        if (lowerMsg.includes('rate') || lowerMsg.includes('limit')) {
+          displayMsg = 'Rate limited — retrying…';
+        } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch')) {
+          displayMsg = 'Network error — retrying…';
+        } else if (lowerMsg.includes('invalid')) {
+          displayMsg = 'Invalid symbol';
+        } else {
+          displayMsg = errorMsg;
+        }
+        
+        setError(displayMsg);
       }
     };
 
     updateQuote();
-    const intervalId = setInterval(updateQuote, 60000);
+    const intervalId = setInterval(updateQuote, POLL_MS);
     return () => clearInterval(intervalId);
   }, [symbol]);
 
@@ -77,9 +95,28 @@ function AnalyticsPanel({ symbol }) {
 
       setQuote(quoteData);
       setProfile(profileData);
+      
+      if (!quoteData && !profileData) {
+        throw new Error('Unable to fetch stock data');
+      }
     } catch (err) {
       console.error('Error loading analytics:', err);
-      setError(err.message);
+      const errorMsg = err.message || 'Failed to load analytics';
+      const lowerMsg = errorMsg.toLowerCase();
+      
+      // Show helpful error messages
+      let displayMsg = 'No data available';
+      if (lowerMsg.includes('rate') || lowerMsg.includes('limit')) {
+        displayMsg = 'Rate limited — retrying…';
+      } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch')) {
+        displayMsg = 'Network error — retrying…';
+      } else if (lowerMsg.includes('invalid')) {
+        displayMsg = 'Invalid symbol';
+      } else {
+        displayMsg = errorMsg;
+      }
+      
+      setError(displayMsg);
     } finally {
       setLoading(false);
     }
