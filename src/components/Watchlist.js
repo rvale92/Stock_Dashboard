@@ -102,16 +102,13 @@ function Watchlist({ onStockSelect }) {
               checkAlerts(stock, data.price);
             }
             setStockData(prev => ({ ...prev, [stock]: data }));
-          } catch (err) {
-            console.error(`[Watchlist] Error fetching ${stock}:`, err);
-            setStockData(prev => ({ ...prev, [stock]: { symbol: stock, error: err.message || 'API connection failed — check proxy URL configuration.' } }));
             setError(prev => {
               const newError = { ...prev };
               delete newError[stock];
               return newError;
             });
           } catch (err) {
-            console.error(`Error updating ${stock}:`, err.message);
+            console.error(`[Watchlist] Error fetching ${stock}:`, err);
             const errorMsg = err.message || 'Unknown error';
             const lowerMsg = errorMsg.toLowerCase();
             
@@ -119,7 +116,7 @@ function Watchlist({ onStockSelect }) {
             let displayMsg = 'No data available';
             if (lowerMsg.includes('rate') || lowerMsg.includes('limit')) {
               displayMsg = 'Rate limited — retrying…';
-            } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch')) {
+            } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch') || lowerMsg.includes('proxy')) {
               displayMsg = 'Network error — retrying…';
             } else if (lowerMsg.includes('invalid')) {
               displayMsg = 'Invalid symbol';
